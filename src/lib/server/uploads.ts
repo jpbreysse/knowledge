@@ -8,14 +8,17 @@ import { env } from '$env/dynamic/private';
 export const UPLOAD_DIR = resolve(env.UPLOAD_DIR ?? './uploads');
 export const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
 
-// MIME + magic-byte whitelist. file-type returns canonical mime for binary formats.
-// DOCX is a zip — file-type reports 'application/zip'; we additionally require the
-// canonical DOCX content-type from the client and the .docx extension.
+// MIME + magic-byte whitelist. file-type returns canonical mime for binary
+// formats. Well-formed DOCX sniffs as the full OOXML mime; a DOCX whose
+// [Content_Types].xml isn't the first zip entry falls back to
+// 'application/zip' — both acceptable, the extension check already
+// constrains us to .docx.
 const ALLOWED_SNIFFED_MIME = new Set([
 	'application/pdf',
 	'image/png',
 	'image/jpeg',
-	'application/zip' // DOCX
+	'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+	'application/zip' // DOCX (non-canonical zip entry order)
 ]);
 
 const ALLOWED_EXT = new Set(['pdf', 'png', 'jpg', 'jpeg', 'docx']);
@@ -59,7 +62,9 @@ export async function saveUpload(
 		(sniffed.mime === 'application/pdf' && ext !== 'pdf') ||
 		(sniffed.mime === 'image/png' && ext !== 'png') ||
 		(sniffed.mime === 'image/jpeg' && ext !== 'jpg' && ext !== 'jpeg') ||
-		(sniffed.mime === 'application/zip' && ext !== 'docx');
+		(sniffed.mime === 'application/zip' && ext !== 'docx') ||
+		(sniffed.mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' &&
+			ext !== 'docx');
 	if (mismatched) {
 		return { ok: false, error: 'file extension does not match content', status: 415 };
 	}
