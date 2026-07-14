@@ -54,9 +54,10 @@ export async function listAssets(params: ListParams) {
 	if (params.search && params.search.trim()) {
 		// v3.1: search hits the whole attributes JSONB as text — matches any
 		// value (jurisdiction, location, sponsor_name, model, etc.) not just
-		// the small set of legacy columns. Terms are AND-ed so word order
-		// doesn't matter ("pump drain" == "drain pump"). Cheap enough under
-		// the 500-row cap; promote to GIN(to_tsvector(...)) if it grows.
+		// the small set of legacy columns — plus attached document filenames,
+		// so searching a doc name surfaces the asset carrying it. Terms are
+		// AND-ed so word order doesn't matter ("pump drain" == "drain pump").
+		// Cheap enough under the 500-row cap; promote to GIN if it grows.
 		for (const t of params.search.trim().split(/\s+/).filter(Boolean)) {
 			const q = `%${t}%`;
 			conds.push(
@@ -64,7 +65,10 @@ export async function listAssets(params: ListParams) {
 				or(
 					ilike(asset.tag, q),
 					ilike(asset.name, q),
-					sql`${asset.attributes}::text ILIKE ${q}`
+					sql`${asset.attributes}::text ILIKE ${q}`,
+					sql`EXISTS (SELECT 1 FROM ${assetDocument}
+						WHERE ${assetDocument.assetId} = ${asset.id}
+						  AND ${assetDocument.filename} ILIKE ${q})`
 				)
 			);
 		}
