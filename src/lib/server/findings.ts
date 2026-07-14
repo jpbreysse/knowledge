@@ -8,7 +8,7 @@
 // the federated document store via callConnector.
 
 import { sqlClient as db } from './db';
-import type { Fragment, JSONValue } from 'postgres';
+import type { Fragment } from 'postgres';
 import { callConnector, ConnectorError } from './connector-client';
 import { renderProseMirrorDocument } from './prosemirror-html';
 import {
@@ -186,7 +186,7 @@ export async function createFinding(input: CreateInput): Promise<Finding> {
 			${input.finding_type ?? 'inspection'},
 			${descriptionDocId},
 			${''},
-			${db.json((input.attributes ?? {}) as JSONValue)},
+			${JSON.stringify(input.attributes ?? {})}::jsonb,
 			${input.raised_by ?? null}
 		)
 		RETURNING *
@@ -214,7 +214,7 @@ export async function updateFinding(id: string, input: UpdateInput): Promise<Fin
 		UPDATE finding
 		SET title = ${title},
 			severity = ${severity},
-			attributes = ${db.json(attributes as JSONValue)},
+			attributes = ${JSON.stringify(attributes)}::jsonb,
 			updated_at = NOW(),
 			updated_by = ${updated_by}
 		WHERE id = ${id}

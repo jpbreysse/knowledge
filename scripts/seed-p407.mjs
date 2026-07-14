@@ -71,9 +71,8 @@ try {
 		console.log(`
 Walkthrough (see docs/demo-p407.md):
   1. npm run dev  →  open /assets and search P-407
-  2. On the P-407 page, Findings section → "Raise finding" (opens the knowledge app prefilled)
-  3. Create the finding in the knowledge app
-  4. Reload the P-407 page — the finding appears under Findings (n). A reload is all it takes.`);
+  2. On the P-407 page, Findings section → "Raise finding" (same tab, asset pre-linked)
+  3. Type a title, save — you're back on P-407 with the finding in the list. One loop.`);
 	}
 
 	await sqlClient.end({ timeout: 2 });

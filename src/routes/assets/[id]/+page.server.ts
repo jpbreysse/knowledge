@@ -1,5 +1,4 @@
 import { error } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
 import type { PageServerLoad } from './$types';
 import {
 	getAsset,
@@ -54,10 +53,6 @@ export const load: PageServerLoad = async ({ params }) => {
 		assetClass,
 		refLookup,
 		versionChain,
-		entityLinks,
-		knowledgeUrl: env.KNOWLEDGE_URL ?? 'http://localhost:5178',
-		// Gate for outbound write-side links (Raise finding). knowledgeUrl keeps
-		// its localhost fallback for read-side links, so it can't serve as the gate.
-		knowledgeConfigured: !!env.KNOWLEDGE_URL
+		entityLinks
 	};
 };

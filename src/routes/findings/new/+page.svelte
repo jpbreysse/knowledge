@@ -1,14 +1,27 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { toast } from 'svelte-sonner';
 	import { SEVERITIES, type Severity } from '$lib/types';
+	import X from '@lucide/svelte/icons/x';
 
 	let title = $state('');
 	let severity = $state<Severity>('medium');
 	let saving = $state(false);
+
+	// Prefill from the Raise-finding button on /assets/[id]:
+	// ?asset_id=…&asset_tag=…&asset_display=…&return_to=/assets/…
+	// The asset is pre-linked on save; return_to brings the user straight back.
+	const prefillAssetId = page.url.searchParams.get('asset_id');
+	const prefillDisplay =
+		page.url.searchParams.get('asset_display') ??
+		page.url.searchParams.get('asset_tag') ??
+		prefillAssetId;
+	const returnTo = page.url.searchParams.get('return_to');
+	let linkedAssetId = $state(prefillAssetId);
 
 	async function save() {
 		if (!title.trim()) {
@@ -27,19 +40,49 @@
 				toast.error('Save failed: ' + (await res.text()));
 				return;
 			}
+			if (linkedAssetId) {
+				const linkRes = await fetch(`/api/findings/${id}/assets`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ asset_id: linkedAssetId })
+				});
+				if (!linkRes.ok) toast.error('Finding created, but linking the asset failed');
+			}
 			toast.success('Finding created');
-			goto(`/findings/${id}?edit=1`);
+			goto(linkedAssetId && returnTo ? returnTo : `/findings/${id}?edit=1`);
 		} finally {
 			saving = false;
 		}
 	}
 </script>
 
-<a href="/findings" class="text-xs text-muted-foreground hover:text-foreground">← Back to findings</a>
+<a href={returnTo ?? '/findings'} class="text-xs text-muted-foreground hover:text-foreground">
+	← Back to {returnTo ? 'asset' : 'findings'}
+</a>
 
 <h1 class="mt-2 text-xl font-semibold tracking-tight mb-4">New finding</h1>
 
 <div class="space-y-4 max-w-3xl">
+	{#if linkedAssetId}
+		<div>
+			<Label class="text-xs">Concerns</Label>
+			<div class="mt-1">
+				<span class="inline-flex items-center gap-1 px-2 py-1 rounded border border-border bg-muted/40 text-xs">
+					{prefillDisplay}
+					<button
+						type="button"
+						class="ml-1 text-muted-foreground hover:text-destructive"
+						onclick={() => (linkedAssetId = null)}
+						aria-label="Remove asset link"
+						title="Remove asset link"
+					>
+						<X class="size-3" />
+					</button>
+				</span>
+			</div>
+		</div>
+	{/if}
+
 	<div>
 		<Label for="title" class="text-xs">Title</Label>
 		<Input
@@ -65,11 +108,16 @@
 
 	<div class="flex gap-2">
 		<Button onclick={save} disabled={saving}>{saving ? 'Saving…' : 'Create finding'}</Button>
-		<Button variant="ghost" href="/findings" disabled={saving}>Cancel</Button>
+		<Button variant="ghost" href={returnTo ?? '/findings'} disabled={saving}>Cancel</Button>
 	</div>
 
 	<p class="text-xs text-muted-foreground">
-		On save, a description document is created in the document store and you'll be taken to the
-		finding's detail page to write the description, link assets, and link supporting documents.
+		{#if linkedAssetId && returnTo}
+			On save, the finding is linked to the asset above and you'll be taken straight back to its
+			page. Open the finding later to write the description or link documents.
+		{:else}
+			On save, a description document is created in the document store and you'll be taken to the
+			finding's detail page to write the description, link assets, and link supporting documents.
+		{/if}
 	</p>
 </div>
