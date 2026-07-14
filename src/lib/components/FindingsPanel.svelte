@@ -4,36 +4,28 @@
 	import AlertOctagon from '@lucide/svelte/icons/alert-octagon';
 	import SquarePen from '@lucide/svelte/icons/square-pen';
 	import { relativeTime } from '$lib/time';
-	import type { FindingForAsset } from '$lib/server/knowledge';
+	import type { FindingForAsset } from '$lib/server/findings';
 
 	let {
 		findings,
-		knowledgeUrl,
-		knowledgeConfigured = false,
 		assetId = '',
 		assetTag = '',
 		assetName = ''
 	}: {
 		findings: FindingForAsset[];
-		knowledgeUrl: string;
-		/** True only when KNOWLEDGE_URL is actually set in the environment —
-		 *  the knowledgeUrl prop always carries a localhost fallback, so it
-		 *  can't be used to gate the outbound button. */
-		knowledgeConfigured?: boolean;
 		assetId?: string;
 		assetTag?: string;
 		assetName?: string;
 	} = $props();
 
-	function findingHref(id: string) {
-		return `${knowledgeUrl.replace(/\/+$/, '')}/findings/${id}`;
-	}
-
+	// Findings live in this app now — internal links, same-tab flow, and the
+	// new-finding page pre-links the asset and returns here after save.
 	const raiseHref = $derived(
-		`${knowledgeUrl.replace(/\/+$/, '')}/findings/new` +
+		`/findings/new` +
 			`?asset_id=${encodeURIComponent(assetId)}` +
 			`&asset_tag=${encodeURIComponent(assetTag)}` +
-			`&asset_display=${encodeURIComponent(`${assetTag} — ${assetName}`)}`
+			`&asset_display=${encodeURIComponent(`${assetTag} — ${assetName}`)}` +
+			`&return_to=${encodeURIComponent(`/assets/${assetId}`)}`
 	);
 </script>
 
@@ -43,8 +35,8 @@
 			<h2 class="text-sm font-semibold">Findings</h2>
 			<span class="text-muted-foreground text-xs">({findings.length})</span>
 		</div>
-		{#if knowledgeConfigured && assetId}
-			<Button href={raiseHref} target="_blank" rel="noopener" variant="outline" size="sm">
+		{#if assetId}
+			<Button href={raiseHref} variant="outline" size="sm">
 				<SquarePen class="size-4" /> Raise finding
 			</Button>
 		{/if}
@@ -62,9 +54,7 @@
 			{#each findings as f}
 				<li>
 					<a
-						href={findingHref(f.id)}
-						target="_blank"
-						rel="noopener"
+						href={`/findings/${f.id}`}
 						class="hover:bg-muted/40 flex flex-col gap-1.5 px-4 py-3 transition-colors sm:flex-row sm:items-center sm:gap-4"
 					>
 						<div class="flex items-center gap-2">

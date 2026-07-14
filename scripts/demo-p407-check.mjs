@@ -3,8 +3,8 @@
 //   (a) P-407 exists and its attributes are class-driven (⊆ PUMP-SUBMERSIBLE
 //       attribute_fields); page render spot-checked when the dev server is up
 //   (b) asset_history has the `created | demo-seed` row
-//   (c) the Raise-finding URL is well-formed (3 query params)
-//   (d) KNOWLEDGE_URL is set (warn only)
+//   (c) the Raise-finding URL is internal and carries asset_id + return_to
+//   (d) the document-store connector is enabled (warn only — descriptions)
 //   (e) re-running the seed is a no-op (exit 0, still exactly one P-407)
 
 import { createServer } from 'vite';
@@ -76,31 +76,33 @@ try {
 		);
 	}
 
-	// (c) Raise-finding URL shape (same construction as FindingsPanel)
+	// (c) Raise-finding URL — internal since the findings merge (same
+	// construction as FindingsPanel)
 	if (p407) {
-		const base = (process.env.KNOWLEDGE_URL ?? 'http://localhost:5178').replace(/\/+$/, '');
 		const href =
-			`${base}/findings/new` +
+			`/findings/new` +
 			`?asset_id=${encodeURIComponent(p407.id)}` +
 			`&asset_tag=${encodeURIComponent(p407.tag)}` +
-			`&asset_display=${encodeURIComponent(`${p407.tag} — ${p407.name}`)}`;
-		const u = new URL(href);
-		const params = ['asset_id', 'asset_tag', 'asset_display'];
+			`&asset_display=${encodeURIComponent(`${p407.tag} — ${p407.name}`)}` +
+			`&return_to=${encodeURIComponent(`/assets/${p407.id}`)}`;
+		const u = new URL(href, 'http://localhost');
+		const params = ['asset_id', 'asset_tag', 'asset_display', 'return_to'];
 		ok(
-			u.pathname.endsWith('/findings/new') &&
+			u.pathname === '/findings/new' &&
 				params.every((k) => !!u.searchParams.get(k)) &&
 				u.searchParams.get('asset_id') === p407.id &&
-				u.searchParams.get('asset_display') === `${p407.tag} — ${p407.name}`,
-			`(c) Raise-finding URL well-formed: ${u.pathname}?asset_id&asset_tag&asset_display`
+				u.searchParams.get('return_to') === `/assets/${p407.id}`,
+			`(c) Raise-finding URL internal: /findings/new?asset_id&asset_tag&asset_display&return_to`
 		);
 	}
 
-	// (d) KNOWLEDGE_URL — warn, don't fail
+	// (d) document-store connector — warn, don't fail (only descriptions need it)
+	const conn = await sqlClient`SELECT enabled FROM connector WHERE name = 'document-store'`;
 	ok(
-		!!process.env.KNOWLEDGE_URL,
-		process.env.KNOWLEDGE_URL
-			? `(d) KNOWLEDGE_URL is set (${process.env.KNOWLEDGE_URL})`
-			: '(d) KNOWLEDGE_URL not set — Raise-finding button hidden',
+		conn.length === 1 && conn[0].enabled === true,
+		conn.length
+			? `(d) document-store connector ${conn[0].enabled ? 'enabled' : 'DISABLED'}`
+			: '(d) document-store connector missing — finding descriptions unavailable',
 		true
 	);
 

@@ -2,19 +2,13 @@
 	import FindingBadge from './FindingBadge.svelte';
 	import History from '@lucide/svelte/icons/history';
 	import { relativeTime } from '$lib/time';
-	import type { PrecedentFinding } from '$lib/server/knowledge';
+	import type { PrecedentFinding } from '$lib/server/findings';
 
 	let {
-		precedents,
-		knowledgeUrl
+		precedents
 	}: {
 		precedents: PrecedentFinding[];
-		knowledgeUrl: string;
 	} = $props();
-
-	function findingHref(id: string) {
-		return `${knowledgeUrl.replace(/\/+$/, '')}/findings/${id}`;
-	}
 </script>
 
 <section class="space-y-3">
@@ -37,9 +31,7 @@
 			{#each precedents as p}
 				<li>
 					<a
-						href={findingHref(p.id)}
-						target="_blank"
-						rel="noopener"
+						href={`/findings/${p.id}`}
 						class="hover:bg-muted/40 flex flex-col gap-1.5 px-4 py-3 transition-colors sm:flex-row sm:items-center sm:gap-4"
 					>
 						<div class="flex items-center gap-2">

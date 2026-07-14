@@ -16,10 +16,12 @@
 		<nav class="mx-auto flex h-14 max-w-6xl items-center gap-6 px-6">
 			<a href="/" class="font-semibold tracking-tight">Asset Registry</a>
 			<a href="/assets" class="text-muted-foreground text-sm hover:text-foreground">Assets</a>
+			<a href="/findings" class="text-muted-foreground text-sm hover:text-foreground">Findings</a>
 			<a href="/tree" class="text-muted-foreground text-sm hover:text-foreground">Tree</a>
 			<a href="/graph" class="text-muted-foreground text-sm hover:text-foreground">Graph</a>
 			<a href="/connectors" class="text-muted-foreground text-sm hover:text-foreground">Connectors</a>
 			<a href="/asset-types" class="text-muted-foreground text-sm hover:text-foreground">Asset types</a>
+			<a href="/audit" class="text-muted-foreground text-sm hover:text-foreground">Audit</a>
 			<!-- Discoverability hint for the Cmd-K palette. Click also opens it via
 			     the same keydown handler the palette listens to. -->
 			<button

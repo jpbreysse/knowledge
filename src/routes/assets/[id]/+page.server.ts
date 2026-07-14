@@ -1,5 +1,4 @@
 import { error } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
 import type { PageServerLoad } from './$types';
 import {
 	getAsset,
@@ -13,7 +12,7 @@ import { listAssetClasses } from '$lib/server/asset-classes';
 import { collectRefIds, resolveAssetRefs } from '$lib/server/asset-refs';
 import { listConnectors } from '$lib/server/connectors';
 import { linksForAsset } from '$lib/server/entity-links';
-import { findingsForAsset, precedentsForAsset } from '$lib/server/knowledge';
+import { findingsForAsset, precedentsForAsset } from '$lib/server/findings';
 import { isUuid } from '$lib/server/validation';
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -54,10 +53,6 @@ export const load: PageServerLoad = async ({ params }) => {
 		assetClass,
 		refLookup,
 		versionChain,
-		entityLinks,
-		knowledgeUrl: env.KNOWLEDGE_URL ?? 'http://localhost:5178',
-		// Gate for outbound write-side links (Raise finding). knowledgeUrl keeps
-		// its localhost fallback for read-side links, so it can't serve as the gate.
-		knowledgeConfigured: !!env.KNOWLEDGE_URL
+		entityLinks
 	};
 };

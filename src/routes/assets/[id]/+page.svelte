@@ -582,8 +582,6 @@
 
 	<FindingsPanel
 	findings={data.findings}
-	knowledgeUrl={data.knowledgeUrl}
-	knowledgeConfigured={data.knowledgeConfigured}
 	assetId={data.asset.id}
 	assetTag={data.asset.tag}
 	assetName={data.asset.name}
@@ -591,7 +589,7 @@
 
 	<Separator />
 
-	<PrecedentsPanel precedents={data.precedents} knowledgeUrl={data.knowledgeUrl} />
+	<PrecedentsPanel precedents={data.precedents} />
 
 	{#if data.versionChain && (data.versionChain.predecessors.length > 0 || data.versionChain.successors.length > 0)}
 		<Separator />

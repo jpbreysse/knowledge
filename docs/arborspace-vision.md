@@ -36,15 +36,14 @@ Adapted from Palantir's proven Data → Logic → Actions frame, delivered as a 
 
 ---
 
-## 4. Architecture — three federated apps
+## 4. Architecture — one product, one federated seam
 
-Deliberately **not a monolith**. Three independent apps talking over HTTP, no shared databases, each owning its domain:
+Two components, split where the domain genuinely separates:
 
-- **Asset Registry (port 5177)** — the register itself: assets, classes, links, attributes, connectors, rules.
-- **Knowledge / Findings (port 5178)** — observations, proposals, decisions with lifecycle. The inbox.
-- **Document Store (port 3001/5173)** — long-form authored documents (ProseMirror). Attached to findings and assets.
+- **ArborSpace (port 5177)** — the product: the register (assets, classes, links, attributes), the reasoning (findings with lifecycle, precedents, rules → proposals), and the audit trail. Data, Logic, and Actions in **one deployable**.
+- **Document Store (port 3001/5173)** — long-form authored documents (ProseMirror), reached via the connector registry. Generic by nature, plausibly replaced by a customer's existing DMS.
 
-Any app can be swapped, replaced, or run standalone. This is what makes ArborSpace deployable in restrictive environments where one big platform is a non-starter.
+Findings and assets share one database with real foreign keys — every finding is *about* an asset, so the domain never wanted them apart (they were merged from an earlier three-app split; see `docs/findings-merge-plan.md`). The document seam stays federated: bulky content lives in a swappable store, and that's the honest version of the "no lock-in" claim — components are separable **where separation makes sense**, not everywhere.
 
 ---
 
@@ -58,7 +57,7 @@ A running product, not slideware. Currently deployed as a demo at `localhost:517
 - Class-driven attribute schemas with 9 field types (text, number, date, select, boolean, list, object, ref, array_ref).
 - Typed cross-references between assets (`participates_in`) alongside the containment tree.
 - Version chains for IERs and methodologies. Confidentiality per asset. Documents (uploaded + linked from external stores). Full search across all JSONB.
-- Cross-app knowledge integration: findings on any asset, precedents from Group history, all served from a separate Knowledge database.
+- Findings with a status lifecycle (raised → reviewed → accepted → mitigated → closed), linked to assets with referential integrity; precedents from Group history surfaced on every asset page; same-tab raise-finding loop.
 
 **Interaction layer**:
 - `/graph` — Cytoscape.js visualisation of the register with typed edges.
