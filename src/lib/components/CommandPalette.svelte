@@ -9,9 +9,10 @@
 	import CornerDownLeft from '@lucide/svelte/icons/corner-down-left';
 	import Upload from '@lucide/svelte/icons/upload';
 	import Plus from '@lucide/svelte/icons/plus';
+	import AlertOctagon from '@lucide/svelte/icons/alert-octagon';
 
 	type SearchHit = {
-		kind: 'asset' | 'asset-type' | 'connector' | 'action';
+		kind: 'asset' | 'asset-type' | 'connector' | 'finding' | 'action';
 		id: string;
 		primary: string;
 		secondary: string;
@@ -42,11 +43,12 @@
 		assets: SearchHit[];
 		assetTypes: SearchHit[];
 		connectors: SearchHit[];
+		findings: SearchHit[];
 	};
 
 	let open = $state(false);
 	let query = $state('');
-	let result = $state<SearchResult>({ assets: [], assetTypes: [], connectors: [] });
+	let result = $state<SearchResult>({ assets: [], assetTypes: [], connectors: [], findings: [] });
 	let loading = $state(false);
 	let inputEl = $state<HTMLInputElement | null>(null);
 	let listboxEl = $state<HTMLDivElement | null>(null);
@@ -67,12 +69,13 @@
 		...matchedActions,
 		...result.assets,
 		...result.assetTypes,
-		...result.connectors
+		...result.connectors,
+		...result.findings
 	]);
 
 	async function runSearch(q: string) {
 		if (!q.trim()) {
-			result = { assets: [], assetTypes: [], connectors: [] };
+			result = { assets: [], assetTypes: [], connectors: [], findings: [] };
 			return;
 		}
 		const myToken = ++searchToken;
@@ -83,7 +86,7 @@
 			if (res.ok) {
 				result = await res.json();
 			} else {
-				result = { assets: [], assetTypes: [], connectors: [] };
+				result = { assets: [], assetTypes: [], connectors: [], findings: [] };
 			}
 		} finally {
 			if (myToken === searchToken) {
@@ -102,7 +105,7 @@
 	async function openPalette() {
 		open = true;
 		query = '';
-		result = { assets: [], assetTypes: [], connectors: [] };
+		result = { assets: [], assetTypes: [], connectors: [], findings: [] };
 		activeIdx = 0;
 		await tick();
 		inputEl?.focus();
@@ -156,17 +159,30 @@
 	}
 
 	function iconFor(kind: SearchHit['kind']) {
-		return kind === 'asset' ? Boxes : kind === 'asset-type' ? Layers : Plug;
+		if (kind === 'asset') return Boxes;
+		if (kind === 'asset-type') return Layers;
+		if (kind === 'finding') return AlertOctagon;
+		return Plug;
 	}
 
 	const searchCount = $derived(
-		result.assets.length + result.assetTypes.length + result.connectors.length
+		result.assets.length +
+			result.assetTypes.length +
+			result.connectors.length +
+			result.findings.length
 	);
 
-	function sectionOffset(section: 'assets' | 'assetTypes' | 'connectors') {
+	function sectionOffset(section: 'assets' | 'assetTypes' | 'connectors' | 'findings') {
 		if (section === 'assets') return matchedActions.length;
 		if (section === 'assetTypes') return matchedActions.length + result.assets.length;
-		return matchedActions.length + result.assets.length + result.assetTypes.length;
+		if (section === 'connectors')
+			return matchedActions.length + result.assets.length + result.assetTypes.length;
+		return (
+			matchedActions.length +
+			result.assets.length +
+			result.assetTypes.length +
+			result.connectors.length
+		);
 	}
 </script>
 
@@ -319,6 +335,34 @@
 								>
 									<Icon class="text-muted-foreground size-4 shrink-0" />
 									<span class="font-mono text-xs">{hit.primary}</span>
+									<span class="text-muted-foreground truncate text-xs">{hit.secondary}</span>
+									{#if active}
+										<CornerDownLeft class="text-muted-foreground ml-auto size-3.5 shrink-0" />
+									{/if}
+								</button>
+							{/each}
+						</div>
+					{/if}
+					{#if result.findings.length > 0}
+						<div class="border-t py-1">
+							<p class="text-muted-foreground px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-wide">
+								Findings
+							</p>
+							{#each result.findings as hit, i (hit.id)}
+								{@const idx = sectionOffset('findings') + i}
+								{@const active = idx === activeIdx}
+								{@const Icon = iconFor(hit.kind)}
+								<button
+									type="button"
+									data-hit-index={idx}
+									class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm {active
+										? 'bg-muted'
+										: 'hover:bg-muted/50'}"
+									onmouseenter={() => (activeIdx = idx)}
+									onclick={() => pick(hit)}
+								>
+									<Icon class="text-muted-foreground size-4 shrink-0" />
+									<span class="truncate text-xs">{hit.primary}</span>
 									<span class="text-muted-foreground truncate text-xs">{hit.secondary}</span>
 									{#if active}
 										<CornerDownLeft class="text-muted-foreground ml-auto size-3.5 shrink-0" />

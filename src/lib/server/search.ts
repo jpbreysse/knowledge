@@ -1,11 +1,11 @@
 import { asc, ilike, or, sql } from 'drizzle-orm';
-import { db } from './db';
+import { db, sqlClient } from './db';
 import { asset, assetClass, connector } from './db/schema';
 
 const LIMIT = 8;
 
 export type SearchHit = {
-	kind: 'asset' | 'asset-type' | 'connector';
+	kind: 'asset' | 'asset-type' | 'connector' | 'finding';
 	id: string;
 	primary: string; // main label
 	secondary: string; // context / subtitle
@@ -13,24 +13,26 @@ export type SearchHit = {
 };
 
 /**
- * Global search — a single round-trip that hits assets, asset_class, and
- * connector, capped per-section. Used by the Cmd-K palette.
+ * Global search — a single round-trip that hits assets, asset_class,
+ * connector, and finding, capped per-section. Used by the Cmd-K palette.
  *
  * Match rules:
  *   asset       — tag / name / any attribute value (attributes::text)
  *   asset_class — code / label / description
  *   connector   — name / label / base_url
+ *   finding     — title / cached description HTML
  */
 export async function globalSearch(query: string): Promise<{
 	assets: SearchHit[];
 	assetTypes: SearchHit[];
 	connectors: SearchHit[];
+	findings: SearchHit[];
 }> {
 	const q = query.trim();
-	if (!q) return { assets: [], assetTypes: [], connectors: [] };
+	if (!q) return { assets: [], assetTypes: [], connectors: [], findings: [] };
 	const pattern = `%${q}%`;
 
-	const [assetRows, classRows, connectorRows] = await Promise.all([
+	const [assetRows, classRows, connectorRows, findingRows] = await Promise.all([
 		db
 			.select({
 				id: asset.id,
@@ -81,7 +83,13 @@ export async function globalSearch(query: string): Promise<{
 				)
 			)
 			.orderBy(asc(connector.name))
-			.limit(LIMIT)
+			.limit(LIMIT),
+		sqlClient<{ id: string; title: string; severity: string; status: string }[]>`
+			SELECT id, title, severity, status FROM finding
+			WHERE title ILIKE ${pattern} OR description_html ILIKE ${pattern}
+			ORDER BY raised_at DESC
+			LIMIT ${LIMIT}
+		`
 	]);
 
 	return {
@@ -105,6 +113,13 @@ export async function globalSearch(query: string): Promise<{
 			primary: r.name,
 			secondary: `${r.label} — ${r.baseUrl}`,
 			href: `/connectors/${r.id}`
+		})),
+		findings: findingRows.map((r) => ({
+			kind: 'finding' as const,
+			id: r.id,
+			primary: r.title,
+			secondary: `${r.severity} — ${r.status}`,
+			href: `/findings/${r.id}`
 		}))
 	};
 }
