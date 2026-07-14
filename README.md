@@ -60,6 +60,7 @@ Open http://localhost:5173.
 | `UPLOAD_DIR`              | no       | `./uploads`        | Local filesystem path for uploaded documents.                        |
 | `BODY_SIZE_LIMIT`         | no       | `52428800` (50 MB) | adapter-node body-parser cap. Must be ≥ 50 MB for uploads.           |
 | `PORT`                    | no       | `3000`             | adapter-node HTTP port in production.                                |
+| `DOCS_APP_BASE`           | no       | `http://localhost:5173` | Document-store SPA base URL — finding descriptions are edited there. |
 
 ## Database
 
@@ -130,3 +131,7 @@ See [`docs/data-model.md`](./docs/data-model.md) for the schema summary and note
 ## Write path
 
 All runtime writes to the `asset` table go through the write service (`src/lib/server/asset-service.ts` — `createAsset`/`updateAsset`: validation, ref integrity, audit actor, and the future rule-enforcement hook). Seeds are the named exception: they insert via raw psql with no validation, no rules, and no audit GUC — acceptable for fixtures only.
+
+## Findings (merged 2026-07)
+
+Findings live in this app now (`finding`, `finding_asset` with a real FK to `asset`, `finding_document`; see `docs/findings-merge-plan.md`). The findings UI is at `/findings`; the raise-finding loop on `/assets/[id]` is same-tab with a `return_to` round trip. Long-form finding descriptions remain ProseMirror documents in the federated document store, reached via the `connector` registry (`document-store` row). The former knowledge app and its `knowledge` database are decommissioned — the DB is kept as a backup until the merge has survived real use.
