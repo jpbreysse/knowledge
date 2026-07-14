@@ -71,7 +71,7 @@
 			<Search class="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2" />
 			<Input
 				type="search"
-				placeholder="Search tag, name, manufacturer…"
+				placeholder="Contains… (tag, name, any attribute, document) — press Enter"
 				bind:value={searchInput}
 				class="pl-8 w-72"
 			/>
