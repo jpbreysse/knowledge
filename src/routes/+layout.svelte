@@ -1,0 +1,53 @@
+<script lang="ts">
+	import './layout.css';
+	import Toaster from '$lib/components/ui/sonner/sonner.svelte';
+	import CommandPalette from '$lib/components/CommandPalette.svelte';
+	import Search from '@lucide/svelte/icons/search';
+
+	let { children } = $props();
+</script>
+
+<svelte:head>
+	<title>Asset Registry</title>
+</svelte:head>
+
+<div class="min-h-screen bg-background text-foreground">
+	<header class="border-b bg-card">
+		<nav class="mx-auto flex h-14 max-w-6xl items-center gap-6 px-6">
+			<a href="/" class="font-semibold tracking-tight">Asset Registry</a>
+			<a href="/assets" class="text-muted-foreground text-sm hover:text-foreground">Assets</a>
+			<a href="/tree" class="text-muted-foreground text-sm hover:text-foreground">Tree</a>
+			<a href="/graph" class="text-muted-foreground text-sm hover:text-foreground">Graph</a>
+			<a href="/connectors" class="text-muted-foreground text-sm hover:text-foreground">Connectors</a>
+			<a href="/asset-types" class="text-muted-foreground text-sm hover:text-foreground">Asset types</a>
+			<!-- Discoverability hint for the Cmd-K palette. Click also opens it via
+			     the same keydown handler the palette listens to. -->
+			<button
+				type="button"
+				class="text-muted-foreground hover:text-foreground ml-auto inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
+				onclick={() => {
+					const isMac = navigator.platform.toLowerCase().includes('mac');
+					window.dispatchEvent(
+						new KeyboardEvent('keydown', {
+							key: 'k',
+							metaKey: isMac,
+							ctrlKey: !isMac,
+							bubbles: true
+						})
+					);
+				}}
+				title="Search (⌘K)"
+			>
+				<Search class="size-3.5" />
+				<span>Search</span>
+				<kbd class="rounded border bg-muted px-1 py-0.5 text-[0.6rem]">⌘K</kbd>
+			</button>
+		</nav>
+	</header>
+	<main class="mx-auto max-w-6xl px-6 py-8">
+		{@render children()}
+	</main>
+</div>
+
+<CommandPalette />
+<Toaster />
