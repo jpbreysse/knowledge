@@ -5,7 +5,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import ConditionBadge from '$lib/components/ConditionBadge.svelte';
-	import { CLASS_CODES, CONDITION_RATINGS } from '$lib/constants';
+	import { CONDITION_RATINGS } from '$lib/constants';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Download from '@lucide/svelte/icons/download';
 	import Upload from '@lucide/svelte/icons/upload';
@@ -82,7 +82,7 @@
 			onchange={(e) => applyFilter({ class_code: e.currentTarget.value })}
 		>
 			<option value="">All classes</option>
-			{#each CLASS_CODES as c}
+			{#each data.classCodes as c}
 				<option value={c}>{c}</option>
 			{/each}
 		</select>
