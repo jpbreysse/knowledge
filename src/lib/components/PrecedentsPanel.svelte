@@ -2,7 +2,7 @@
 	import FindingBadge from './FindingBadge.svelte';
 	import History from '@lucide/svelte/icons/history';
 	import { relativeTime } from '$lib/time';
-	import type { PrecedentFinding } from '$lib/server/knowledge';
+	import type { PrecedentFinding } from '$lib/server/findings';
 
 	let {
 		precedents,

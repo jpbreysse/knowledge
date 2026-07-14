@@ -4,7 +4,7 @@
 	import AlertOctagon from '@lucide/svelte/icons/alert-octagon';
 	import SquarePen from '@lucide/svelte/icons/square-pen';
 	import { relativeTime } from '$lib/time';
-	import type { FindingForAsset } from '$lib/server/knowledge';
+	import type { FindingForAsset } from '$lib/server/findings';
 
 	let {
 		findings,

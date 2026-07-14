@@ -13,7 +13,7 @@ import { listAssetClasses } from '$lib/server/asset-classes';
 import { collectRefIds, resolveAssetRefs } from '$lib/server/asset-refs';
 import { listConnectors } from '$lib/server/connectors';
 import { linksForAsset } from '$lib/server/entity-links';
-import { findingsForAsset, precedentsForAsset } from '$lib/server/knowledge';
+import { findingsForAsset, precedentsForAsset } from '$lib/server/findings';
 import { isUuid } from '$lib/server/validation';
 
 export const load: PageServerLoad = async ({ params }) => {
