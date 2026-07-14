@@ -213,8 +213,17 @@
 			{/if}
 		</div>
 		<div class="grid gap-1.5 md:col-span-2">
-			<Label for="parent_id">Parent asset ID (UUID, optional)</Label>
-			<Input id="parent_id" bind:value={value.parent_id} disabled={!editable} />
+			<Label for="parent_id">Parent asset <span class="text-muted-foreground font-normal">(optional — where this sits in the hierarchy)</span></Label>
+			<AssetPicker
+				value={value.parent_id || null}
+				onChange={(id, opt) => {
+					cachePick(opt);
+					value.parent_id = id ?? '';
+				}}
+				{refLookup}
+				disabled={!editable}
+				placeholder="Search parent by tag or name…"
+			/>
 			{#if err('parent_id')}<p class="text-destructive text-xs">{err('parent_id')}</p>{/if}
 		</div>
 		<!-- v3.1: serial number / manufacturer / model / location / criticality /

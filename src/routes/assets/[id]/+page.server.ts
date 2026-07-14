@@ -34,10 +34,14 @@ export const load: PageServerLoad = async ({ params }) => {
 	const precedents = await precedentsForAsset(asset.classCode, siteAssetId, 5);
 	const assetClass = assetClasses.find((c) => c.code === asset.classCode) ?? null;
 
-	// Resolve every ref/array_ref value declared by the class to a display chip.
+	// Resolve every ref/array_ref value declared by the class to a display chip,
+	// plus parent and supersedes so their pickers render "TAG — name" chips
+	// instead of raw UUIDs.
 	const refIds = assetClass
 		? collectRefIds(assetClass.attributeFields, asset.attributes as Record<string, unknown>)
 		: [];
+	if (asset.parentId) refIds.push(asset.parentId);
+	if (asset.supersedesAssetId) refIds.push(asset.supersedesAssetId);
 	const refLookupMap = await resolveAssetRefs(refIds);
 	const refLookup = Object.fromEntries(refLookupMap);
 
