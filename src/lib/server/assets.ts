@@ -52,19 +52,22 @@ export async function listAssets(params: ListParams) {
 
 	const conds: ReturnType<typeof eq>[] = [];
 	if (params.search && params.search.trim()) {
-		const q = `%${params.search.trim()}%`;
 		// v3.1: search hits the whole attributes JSONB as text — matches any
 		// value (jurisdiction, location, sponsor_name, model, etc.) not just
-		// the small set of legacy columns. Cheap enough under the 500-row cap;
-		// promote to a GIN(to_tsvector(...)) if the register grows.
-		conds.push(
-			// @ts-expect-error -- drizzle unions
-			or(
-				ilike(asset.tag, q),
-				ilike(asset.name, q),
-				sql`${asset.attributes}::text ILIKE ${q}`
-			)
-		);
+		// the small set of legacy columns. Terms are AND-ed so word order
+		// doesn't matter ("pump drain" == "drain pump"). Cheap enough under
+		// the 500-row cap; promote to GIN(to_tsvector(...)) if it grows.
+		for (const t of params.search.trim().split(/\s+/).filter(Boolean)) {
+			const q = `%${t}%`;
+			conds.push(
+				// @ts-expect-error -- drizzle unions
+				or(
+					ilike(asset.tag, q),
+					ilike(asset.name, q),
+					sql`${asset.attributes}::text ILIKE ${q}`
+				)
+			);
+		}
 	}
 	if (params.classCode) conds.push(eq(asset.classCode, params.classCode));
 	if (params.conditionRating) {

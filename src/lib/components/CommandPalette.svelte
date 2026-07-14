@@ -10,9 +10,10 @@
 	import Upload from '@lucide/svelte/icons/upload';
 	import Plus from '@lucide/svelte/icons/plus';
 	import AlertOctagon from '@lucide/svelte/icons/alert-octagon';
+	import FileText from '@lucide/svelte/icons/file-text';
 
 	type SearchHit = {
-		kind: 'asset' | 'asset-type' | 'connector' | 'finding' | 'action';
+		kind: 'asset' | 'asset-type' | 'connector' | 'finding' | 'document' | 'action';
 		id: string;
 		primary: string;
 		secondary: string;
@@ -44,11 +45,12 @@
 		assetTypes: SearchHit[];
 		connectors: SearchHit[];
 		findings: SearchHit[];
+		documents: SearchHit[];
 	};
 
 	let open = $state(false);
 	let query = $state('');
-	let result = $state<SearchResult>({ assets: [], assetTypes: [], connectors: [], findings: [] });
+	let result = $state<SearchResult>({ assets: [], assetTypes: [], connectors: [], findings: [], documents: [] });
 	let loading = $state(false);
 	let inputEl = $state<HTMLInputElement | null>(null);
 	let listboxEl = $state<HTMLDivElement | null>(null);
@@ -70,12 +72,13 @@
 		...result.assets,
 		...result.assetTypes,
 		...result.connectors,
-		...result.findings
+		...result.findings,
+		...result.documents
 	]);
 
 	async function runSearch(q: string) {
 		if (!q.trim()) {
-			result = { assets: [], assetTypes: [], connectors: [], findings: [] };
+			result = { assets: [], assetTypes: [], connectors: [], findings: [], documents: [] };
 			return;
 		}
 		const myToken = ++searchToken;
@@ -86,7 +89,7 @@
 			if (res.ok) {
 				result = await res.json();
 			} else {
-				result = { assets: [], assetTypes: [], connectors: [], findings: [] };
+				result = { assets: [], assetTypes: [], connectors: [], findings: [], documents: [] };
 			}
 		} finally {
 			if (myToken === searchToken) {
@@ -105,7 +108,7 @@
 	async function openPalette() {
 		open = true;
 		query = '';
-		result = { assets: [], assetTypes: [], connectors: [], findings: [] };
+		result = { assets: [], assetTypes: [], connectors: [], findings: [], documents: [] };
 		activeIdx = 0;
 		await tick();
 		inputEl?.focus();
@@ -162,6 +165,7 @@
 		if (kind === 'asset') return Boxes;
 		if (kind === 'asset-type') return Layers;
 		if (kind === 'finding') return AlertOctagon;
+		if (kind === 'document') return FileText;
 		return Plug;
 	}
 
@@ -169,20 +173,22 @@
 		result.assets.length +
 			result.assetTypes.length +
 			result.connectors.length +
-			result.findings.length
+			result.findings.length +
+			result.documents.length
 	);
 
-	function sectionOffset(section: 'assets' | 'assetTypes' | 'connectors' | 'findings') {
-		if (section === 'assets') return matchedActions.length;
-		if (section === 'assetTypes') return matchedActions.length + result.assets.length;
-		if (section === 'connectors')
-			return matchedActions.length + result.assets.length + result.assetTypes.length;
-		return (
-			matchedActions.length +
-			result.assets.length +
-			result.assetTypes.length +
-			result.connectors.length
-		);
+	function sectionOffset(
+		section: 'assets' | 'assetTypes' | 'connectors' | 'findings' | 'documents'
+	) {
+		let n = matchedActions.length;
+		if (section === 'assets') return n;
+		n += result.assets.length;
+		if (section === 'assetTypes') return n;
+		n += result.assetTypes.length;
+		if (section === 'connectors') return n;
+		n += result.connectors.length;
+		if (section === 'findings') return n;
+		return n + result.findings.length;
 	}
 </script>
 
@@ -211,7 +217,7 @@
 					bind:this={inputEl}
 					type="search"
 					class="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
-					placeholder="Search assets, types, connectors…"
+					placeholder="Search assets, findings, documents, types…"
 					value={query}
 					oninput={onQueryInput}
 				/>
@@ -250,7 +256,7 @@
 				{/if}
 				{#if !query.trim()}
 					<p class="text-muted-foreground border-t p-4 text-center text-xs">
-						Type to search across assets, asset types, and connectors.
+						Type to search across assets, findings, documents, asset types, and connectors.
 					</p>
 				{:else if loading && searchCount === 0}
 					<p class="text-muted-foreground p-6 text-center text-sm">Searching…</p>
@@ -350,6 +356,34 @@
 							</p>
 							{#each result.findings as hit, i (hit.id)}
 								{@const idx = sectionOffset('findings') + i}
+								{@const active = idx === activeIdx}
+								{@const Icon = iconFor(hit.kind)}
+								<button
+									type="button"
+									data-hit-index={idx}
+									class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm {active
+										? 'bg-muted'
+										: 'hover:bg-muted/50'}"
+									onmouseenter={() => (activeIdx = idx)}
+									onclick={() => pick(hit)}
+								>
+									<Icon class="text-muted-foreground size-4 shrink-0" />
+									<span class="truncate text-xs">{hit.primary}</span>
+									<span class="text-muted-foreground truncate text-xs">{hit.secondary}</span>
+									{#if active}
+										<CornerDownLeft class="text-muted-foreground ml-auto size-3.5 shrink-0" />
+									{/if}
+								</button>
+							{/each}
+						</div>
+					{/if}
+					{#if result.documents.length > 0}
+						<div class="border-t py-1">
+							<p class="text-muted-foreground px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-wide">
+								Documents
+							</p>
+							{#each result.documents as hit, i (hit.id)}
+								{@const idx = sectionOffset('documents') + i}
 								{@const active = idx === activeIdx}
 								{@const Icon = iconFor(hit.kind)}
 								<button

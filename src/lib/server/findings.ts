@@ -70,8 +70,11 @@ export async function listFindings(filters: ListFilters = {}): Promise<{
 		conds.push(db`f.finding_type = ${filters.finding_type}`);
 	}
 	if (filters.search) {
-		const q = `%${filters.search}%`;
-		conds.push(db`(f.title ILIKE ${q} OR f.description_html ILIKE ${q})`);
+		// One AND-ed condition per term — word order doesn't matter.
+		for (const t of filters.search.trim().split(/\s+/).filter(Boolean)) {
+			const q = `%${t}%`;
+			conds.push(db`(f.title ILIKE ${q} OR f.description_html ILIKE ${q})`);
+		}
 	}
 	if (filters.asset_id) {
 		conds.push(
