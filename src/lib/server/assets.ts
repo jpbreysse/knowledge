@@ -16,6 +16,8 @@ export type ListParams = {
 	sort?: 'tag' | 'name' | 'class_code';
 	dir?: 'asc' | 'desc';
 	limit?: number;
+	/** Structured attribute conditions from attr-query.ts — AND-ed in. */
+	extraConds?: ReturnType<typeof sql>[];
 };
 
 // v3.1: sort columns limited to what still lives on the asset row.
@@ -74,6 +76,7 @@ export async function listAssets(params: ListParams) {
 		}
 	}
 	if (params.classCode) conds.push(eq(asset.classCode, params.classCode));
+	if (params.extraConds?.length) conds.push(...params.extraConds);
 	if (params.conditionRating) {
 		if (params.conditionRating === 'unassessed') {
 			conds.push(isNull(latest.conditionRating));

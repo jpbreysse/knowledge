@@ -1,7 +1,9 @@
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { asset } from '$lib/server/db/schema';
-import { asc } from 'drizzle-orm';
+import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
+import { getAssetClassByCode } from '$lib/server/asset-classes';
+import { parseAttrQuery } from '$lib/server/attr-query';
 
 // v3.1: the 7 equipment fields moved into `attributes` JSONB. The CSV export
 // now surfaces them as `attributes.manufacturer`/etc. via the attribute-key
@@ -28,8 +30,32 @@ function csvCell(v: unknown): string {
 	return s;
 }
 
-export const GET: RequestHandler = async () => {
-	const rows = await db.select().from(asset).orderBy(asc(asset.tag));
+export const GET: RequestHandler = async ({ url }) => {
+	// The export honors the list page's active query (search, class, attr.*)
+	// so "Export CSV" exports what the user is looking at — filters absent,
+	// it still exports the whole register.
+	const p = url.searchParams;
+	const classCode = p.get('class_code');
+	const classDef = classCode ? await getAssetClassByCode(classCode) : null;
+	const attrQuery = parseAttrQuery(p, classDef);
+
+	const conds = [];
+	if (classCode) conds.push(eq(asset.classCode, classCode));
+	if (p.get('search')?.trim()) {
+		for (const t of p.get('search')!.trim().split(/\s+/).filter(Boolean)) {
+			const q = `%${t}%`;
+			conds.push(
+				or(ilike(asset.tag, q), ilike(asset.name, q), sql`${asset.attributes}::text ILIKE ${q}`)
+			);
+		}
+	}
+	conds.push(...attrQuery.conds);
+
+	const rows = await db
+		.select()
+		.from(asset)
+		.where(conds.length ? and(...conds) : undefined)
+		.orderBy(asc(asset.tag));
 
 	// Union of attribute keys across all rows (stable order).
 	const attrKeySet = new Set<string>();
