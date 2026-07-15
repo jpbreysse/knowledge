@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import { canWrite } from '$lib/auth-client';
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { toast } from '$lib/components/ui/sonner';
@@ -32,7 +34,9 @@
 				and which side-panels apply.
 			</p>
 		</div>
-		<Button href="/asset-types/new"><Plus class="size-4" /> New type</Button>
+		{#if canWrite(page.data.user?.role)}
+			<Button href="/asset-types/new"><Plus class="size-4" /> New type</Button>
+		{/if}
 	</div>
 
 	<div class="rounded-md border">

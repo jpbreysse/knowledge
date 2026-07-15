@@ -4,6 +4,8 @@
 	import AlertOctagon from '@lucide/svelte/icons/alert-octagon';
 	import SquarePen from '@lucide/svelte/icons/square-pen';
 	import { relativeTime } from '$lib/time';
+	import { page } from '$app/state';
+	import { canWrite } from '$lib/auth-client';
 	import type { FindingForAsset } from '$lib/server/findings';
 
 	let {
@@ -35,7 +37,7 @@
 			<h2 class="text-sm font-semibold">Findings</h2>
 			<span class="text-muted-foreground text-xs">({findings.length})</span>
 		</div>
-		{#if assetId}
+		{#if assetId && canWrite(page.data.user?.role)}
 			<Button href={raiseHref} variant="outline" size="sm">
 				<SquarePen class="size-4" /> Raise finding
 			</Button>

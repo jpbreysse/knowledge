@@ -29,11 +29,11 @@ export const GET: RequestHandler = async ({ url }) => {
 	return json(rows);
 };
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = await request.json().catch(() => null);
 	let result;
 	try {
-		result = await createAsset(body, DEFAULT_ACTOR);
+		result = await createAsset(body, locals.user?.email ?? DEFAULT_ACTOR);
 	} catch {
 		throw error(500, 'insert failed');
 	}

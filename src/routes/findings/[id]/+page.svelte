@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import { canWrite } from '$lib/auth-client';
 	import type { PageData } from './$types';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
@@ -217,7 +219,7 @@
 		</div>
 	</div>
 
-	<div class="flex gap-2">
+	<div class="flex gap-2" class:hidden={!canWrite(page.data.user?.role)}>
 		{#if editing}
 			<Button variant="ghost" size="sm" onclick={() => (editing = false)}>Cancel</Button>
 			<Button size="sm" onclick={save}>Save</Button>
@@ -349,7 +351,7 @@
 			Concerns
 			<span class="text-muted-foreground font-normal text-xs">({data.assets.length})</span>
 		</h2>
-		<Button variant="outline" size="sm" onclick={() => (assetModalOpen = true)}>+ Add asset</Button>
+		{#if canWrite(page.data.user?.role)}<Button variant="outline" size="sm" onclick={() => (assetModalOpen = true)}>+ Add asset</Button>{/if}
 	</div>
 	{#if data.assets.length === 0}
 		<p class="text-xs text-muted-foreground italic">No assets linked.</p>
@@ -387,7 +389,7 @@
 			Supported by
 			<span class="text-muted-foreground font-normal text-xs">({data.documents.length})</span>
 		</h2>
-		<Button variant="outline" size="sm" onclick={() => (docModalOpen = true)}>+ Add document</Button>
+		{#if canWrite(page.data.user?.role)}<Button variant="outline" size="sm" onclick={() => (docModalOpen = true)}>+ Add document</Button>{/if}
 	</div>
 	{#if data.documents.length === 0}
 		<p class="text-xs text-muted-foreground italic">No documents linked.</p>

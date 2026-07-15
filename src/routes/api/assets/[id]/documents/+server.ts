@@ -14,7 +14,7 @@ export const GET: RequestHandler = async ({ params }) => {
 	return json(await listDocumentsFor(params.id));
 };
 
-export const POST: RequestHandler = async ({ params, request }) => {
+export const POST: RequestHandler = async ({ params, request, locals }) => {
 	if (!isUuid(params.id)) throw error(400, 'invalid id');
 	const parent = await getAsset(params.id);
 	if (!parent) throw error(404, 'asset not found');
@@ -42,7 +42,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 				mimeType: null,
 				sizeBytes: null,
 				description: null,
-				uploadedBy: DEFAULT_ACTOR,
+				uploadedBy: locals.user?.email ?? DEFAULT_ACTOR,
 				connectorId: parsed.value.connectorId,
 				externalUrl: parsed.value.externalUrl
 			})
@@ -72,7 +72,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 			mimeType: result.stored.mimeType,
 			sizeBytes: result.stored.sizeBytes,
 			description: typeof description === 'string' ? description || null : null,
-			uploadedBy: DEFAULT_ACTOR
+			uploadedBy: locals.user?.email ?? DEFAULT_ACTOR
 		})
 		.returning();
 

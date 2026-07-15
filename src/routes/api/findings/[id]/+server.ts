@@ -19,7 +19,7 @@ export const GET: RequestHandler = async ({ params }) => {
 	return json({ ...finding, assets, documents });
 };
 
-export const PUT: RequestHandler = async ({ params, request }) => {
+export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	let body: unknown;
 	try {
 		body = await request.json();
@@ -30,7 +30,10 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 	if (!parsed.ok) {
 		return json({ error: 'Validation failed', issues: parsed.issues }, { status: 400 });
 	}
-	const updated = await updateFinding(params.id!, parsed.value);
+	const updated = await updateFinding(params.id!, {
+		...parsed.value,
+		updated_by: parsed.value.updated_by ?? locals.user?.email ?? null
+	});
 	if (!updated) throw error(404, 'Not found');
 	return json(updated);
 };

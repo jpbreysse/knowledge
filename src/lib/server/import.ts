@@ -407,7 +407,8 @@ export type ImportCommitResult = {
  */
 export async function commitImport(
 	classDef: AssetClass,
-	validation: ImportValidation
+	validation: ImportValidation,
+	actor = 'import'
 ): Promise<ImportCommitResult> {
 	const validRows = validation.rows.filter((r) => r.parsed);
 	const skippedLines = validation.rows.filter((r) => !r.parsed).map((r) => r.line);
@@ -452,7 +453,7 @@ export async function commitImport(
 					confidentiality: p.confidentiality,
 					attributes: p.attributes
 				},
-				'import',
+				actor,
 				tx
 			);
 			if (!result.ok)

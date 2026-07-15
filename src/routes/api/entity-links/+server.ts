@@ -8,7 +8,7 @@ import { isUuid } from '$lib/server/validation';
 
 const DEFAULT_ACTOR = 'system';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = (await request.json().catch(() => null)) as {
 		source_id?: unknown;
 		target_id?: unknown;
@@ -48,7 +48,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				sourceId: source_id,
 				targetId: target_id,
 				relationType: relation_type,
-				createdBy: DEFAULT_ACTOR
+				createdBy: locals.user?.email ?? DEFAULT_ACTOR
 			})
 			.returning();
 		return json(row, { status: 201 });

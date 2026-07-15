@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import { canWrite } from '$lib/auth-client';
 	import { invalidateAll, goto } from '$app/navigation';
 	import AssetForm, { type AssetFormValue } from '$lib/components/AssetForm.svelte';
 	import ConditionBadge from '$lib/components/ConditionBadge.svelte';
@@ -244,10 +246,12 @@
 		</div>
 		<div class="flex gap-2">
 			{#if mode === 'view'}
-				<Button onclick={() => (mode = 'edit')} variant="outline">
-					<Pencil class="size-4" /> Edit
-				</Button>
-				<Button onclick={remove} variant="destructive"><Trash2 class="size-4" /> Delete</Button>
+				{#if canWrite(page.data.user?.role)}
+					<Button onclick={() => (mode = 'edit')} variant="outline">
+						<Pencil class="size-4" /> Edit
+					</Button>
+					<Button onclick={remove} variant="destructive"><Trash2 class="size-4" /> Delete</Button>
+				{/if}
 			{:else}
 				<Button onclick={save} disabled={saving}>
 					<Save class="size-4" />
@@ -452,7 +456,8 @@
 		{/if}
 	{:else if tab === 'documents'}
 		<div class="space-y-4">
-			<form onsubmit={onUpload} class="bg-muted/30 flex items-end gap-3 rounded-md border p-4">
+			{#if !canWrite(page.data.user?.role)}<span class="hidden"></span>{/if}
+			<form onsubmit={onUpload} class:hidden={!canWrite(page.data.user?.role)} class="bg-muted/30 flex items-end gap-3 rounded-md border p-4">
 				<div class="grid flex-1 gap-1.5">
 					<label for="file" class="text-sm font-medium">Upload document</label>
 					<input

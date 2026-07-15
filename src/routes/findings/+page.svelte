@@ -2,6 +2,7 @@
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { canWrite } from '$lib/auth-client';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { severityClasses, statusClasses, relativeTime } from '$lib/badges';
@@ -64,7 +65,9 @@
 	</div>
 	<div class="flex gap-2">
 		<Button variant="outline" size="sm" href="/api/findings/export.csv">Export CSV</Button>
-		<Button size="sm" href="/findings/new">New finding</Button>
+		{#if canWrite(page.data.user?.role)}
+			<Button size="sm" href="/findings/new">New finding</Button>
+		{/if}
 	</div>
 </div>
 

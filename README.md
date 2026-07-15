@@ -61,6 +61,9 @@ Open http://localhost:5173.
 | `BODY_SIZE_LIMIT`         | no       | `52428800` (50 MB) | adapter-node body-parser cap. Must be ≥ 50 MB for uploads.           |
 | `PORT`                    | no       | `3000`             | adapter-node HTTP port in production.                                |
 | `DOCS_APP_BASE`           | no       | `http://localhost:5173` | Document-store SPA base URL — finding descriptions are edited there. |
+| `BETTER_AUTH_SECRET`      | yes      | —                  | Session signing secret (`openssl rand -hex 32`).                     |
+| `BETTER_AUTH_URL`         | prod     | inferred           | Public base URL; REQUIRED in production, leave unset in dev.          |
+| `API_TOKEN`               | no       | —                  | Bearer token for scripts/CI (acts as role `user`, actor `api-token`). |
 
 ## Database
 
@@ -127,6 +130,10 @@ Future-me: if any of this sounds tempting, it's v2.3+.
 ## Data model
 
 See [`docs/data-model.md`](./docs/data-model.md) for the schema summary and notes on the class-code taxonomy (ISO 14224 / CFIHOS).
+
+## Authentication (v3.4)
+
+Better Auth (email + password, invite-only) with three roles: `admin` (everything incl. connectors + `/admin/users`), `user` (creates assets, classes, findings, imports), `viewer` (read-only — GET APIs and CSV export only). One guard in `hooks.server.ts` enforces roles server-side; the UI additionally hides write buttons. Bootstrap the first admin with `node scripts/create-user.mjs <email> <name> admin`. Every write is attributed: asset history, finding lifecycle, and the HTTP audit log carry the signed-in user's email.
 
 ## Write path
 

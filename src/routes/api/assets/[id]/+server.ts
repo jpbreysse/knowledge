@@ -16,10 +16,10 @@ export const GET: RequestHandler = async ({ params }) => {
 	return json(row);
 };
 
-export const PATCH: RequestHandler = async ({ params, request }) => {
+export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (!isUuid(params.id)) throw error(400, 'invalid id');
 	const body = await request.json().catch(() => null);
-	const result = await updateAsset(params.id, body, DEFAULT_ACTOR);
+	const result = await updateAsset(params.id, body, locals.user?.email ?? DEFAULT_ACTOR);
 	if (!result.ok) {
 		if (result.status === 404) throw error(404, 'not found');
 		return json({ errors: result.errors }, { status: result.status });

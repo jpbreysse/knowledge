@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import { canWrite } from '$lib/auth-client';
 	import { invalidateAll } from '$app/navigation';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
@@ -95,14 +97,16 @@
 			<h2 class="text-sm font-semibold">Related entities</h2>
 			<span class="text-muted-foreground text-xs">({total})</span>
 		</div>
-		<Button
-			type="button"
-			variant="outline"
-			size="sm"
-			onclick={() => (addOpen = true)}
-		>
-			<Plus class="size-4" /> Add link
-		</Button>
+		{#if canWrite(page.data.user?.role)}
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				onclick={() => (addOpen = true)}
+			>
+				<Plus class="size-4" /> Add link
+			</Button>
+		{/if}
 	</div>
 
 	{#if total === 0 && !addOpen}

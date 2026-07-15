@@ -11,7 +11,7 @@ import { commitImport, validateImport } from '$lib/server/import';
  *  - commit=true, mode='soft': insert valid rows, skip invalid ones.
  *  - commit=true, mode='hard': refuse to insert anything if any row is invalid.
  */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = (await request.json().catch(() => null)) as {
 		class_code?: unknown;
 		csv?: unknown;
@@ -43,6 +43,6 @@ export const POST: RequestHandler = async ({ request }) => {
 			{ status: 400 }
 		);
 
-	const result = await commitImport(classDef, validation);
+	const result = await commitImport(classDef, validation, locals.user?.email ?? 'import');
 	return json({ dry_run: false, mode, ...validation, ...result }, { status: 201 });
 };

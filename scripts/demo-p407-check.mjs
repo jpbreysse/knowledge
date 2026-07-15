@@ -53,7 +53,10 @@ try {
 		// Page render — only when the dev server is reachable.
 		try {
 			const res = await fetch(`http://127.0.0.1:5177/assets/${p407.id}`, {
-				signal: AbortSignal.timeout(3000)
+				signal: AbortSignal.timeout(3000),
+				headers: process.env.API_TOKEN
+					? { authorization: `Bearer ${process.env.API_TOKEN}` }
+					: {}
 			});
 			const html = await res.text();
 			ok(

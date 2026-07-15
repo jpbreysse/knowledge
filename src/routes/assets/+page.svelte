@@ -7,6 +7,7 @@
 	import ConditionBadge from '$lib/components/ConditionBadge.svelte';
 	import { CONDITION_RATINGS } from '$lib/constants';
 	import AssetPicker from '$lib/components/AssetPicker.svelte';
+	import { canWrite } from '$lib/auth-client';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Download from '@lucide/svelte/icons/download';
 	import Upload from '@lucide/svelte/icons/upload';
@@ -122,10 +123,12 @@
 			<Button href={`/api/assets/export.csv${page.url.search}`} variant="outline">
 				<Download class="size-4" /> Export CSV
 			</Button>
-			<Button href="/assets/import" variant="outline">
-				<Upload class="size-4" /> Import
-			</Button>
-			<Button href="/assets/new"><Plus class="size-4" /> New asset</Button>
+			{#if canWrite(page.data.user?.role)}
+				<Button href="/assets/import" variant="outline">
+					<Upload class="size-4" /> Import
+				</Button>
+				<Button href="/assets/new"><Plus class="size-4" /> New asset</Button>
+			{/if}
 		</div>
 	</div>
 

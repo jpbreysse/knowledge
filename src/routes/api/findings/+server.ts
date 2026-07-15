@@ -54,7 +54,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	return json(result);
 };
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	let body: unknown;
 	try {
 		body = await request.json();
@@ -65,6 +65,9 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!parsed.ok) {
 		return json({ error: 'Validation failed', issues: parsed.issues }, { status: 400 });
 	}
-	const finding = await createFinding(parsed.value);
+	const finding = await createFinding({
+		...parsed.value,
+		raised_by: parsed.value.raised_by ?? locals.user?.email ?? null
+	});
 	return json(finding, { status: 201 });
 };

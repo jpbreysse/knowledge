@@ -3,7 +3,7 @@ import { error, json } from '@sveltejs/kit';
 import { transitionFinding } from '$lib/server/findings';
 import { validateTransition } from '$lib/server/findings-validation';
 
-export const POST: RequestHandler = async ({ params, request }) => {
+export const POST: RequestHandler = async ({ params, request, locals }) => {
 	let body: unknown;
 	try {
 		body = await request.json();
@@ -14,7 +14,11 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	if (!parsed.ok) {
 		return json({ error: 'Validation failed', issues: parsed.issues }, { status: 400 });
 	}
-	const f = await transitionFinding(params.id!, parsed.value.to_status, parsed.value.by_user ?? null);
+	const f = await transitionFinding(
+		params.id!,
+		parsed.value.to_status,
+		parsed.value.by_user ?? locals.user?.email ?? null
+	);
 	if (!f) throw error(404, 'Not found');
 	return json(f);
 };

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import { canWrite } from '$lib/auth-client';
 	import { goto, invalidateAll } from '$app/navigation';
 	import AssetTypeForm, { type AssetTypeFormValue } from '$lib/components/AssetTypeForm.svelte';
 	import { fromAssetTypeRow, toAssetTypePayload } from '$lib/asset-type-payload';
@@ -70,7 +72,7 @@
 				<span class="text-foreground/80">{data.usage}</span> asset{data.usage === 1 ? '' : 's'} use this type
 			</p>
 		</div>
-		<div class="flex gap-2">
+		<div class="flex gap-2" class:hidden={!canWrite(page.data.user?.role)}>
 			<Button href={`/assets/import?class=${data.klass.code}`} variant="outline">
 				<Upload class="size-4" /> Import CSV
 			</Button>
