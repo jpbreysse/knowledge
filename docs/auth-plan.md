@@ -1,119 +1,120 @@
-# Authentication — plan (v3.4 candidate)
+# Authentication — plan v2 (Better Auth, 3 roles)
 
-*Goal: protect the app when it's hosted, and — just as valuable — put real
-names in the audit trail. Every write already carries an `actor` through the
-write service; today it says `system`. With auth it says `j.breysse`.*
+*Decision taken: Better Auth library (deployment-ready, SSO-capable later),
+three roles — `admin`, `user`, `viewer`. Supersedes the hand-rolled option
+in the first draft of this doc.*
 
-## Three ways to read "basic authentication"
+## Why Better Auth fits the deployment goal
 
-| Option | What it is | Effort | Verdict |
+- Production-hardened session handling out of the box: secure cookies,
+  CSRF protection, built-in rate limiting on auth endpoints (on by default
+  in production), session revocation.
+- **Growth path without rework**: when a customer asks for Azure AD / Google
+  SSO, it's a plugin (`sso`, `oidc`), not a migration. Same for 2FA.
+- First-class SvelteKit integration: one handler in `hooks.server.ts`
+  mounts all `/api/auth/*` routes; a typed client for the login page.
+- Admin plugin gives user management (create user, set role, ban/disable,
+  list) without building an admin UI from scratch.
+
+## Roles — capability matrix (to confirm)
+
+| Capability | admin | user | viewer |
 |---|---|---|---|
-| **A. HTTP Basic** | One shared password at the door (browser popup). No users, no UI. | 30 min | Stopgap only — no per-user identity, audit stays anonymous, ugly UX. Fine to gate a hosted demo *this week*. |
-| **B. Own session auth** ⭐ | `app_user` + `session` tables, password login, cookie sessions, login page. ~250 lines, zero new dependencies (Node's built-in scrypt). | ~1 day | **Recommended.** Fits the repo's hand-rolled style (validation, rules). Full control, no framework churn, easy to explain in a security review. |
-| **C. Better Auth (library)** | The framework originally pencilled in v1. Email/password + sessions + plugins (OAuth, 2FA…). | ~1 day + dep | Right choice *if* SSO/OIDC is coming soon. Otherwise it's a dependency with opinions we mostly won't use. |
+| Browse everything, ⌘K, graph/tree, export CSV | ✔ | ✔ | ✔ |
+| Create/edit/delete **assets**, CSV import | ✔ | ✔ | — |
+| Create/edit **asset types (classes)** | ✔ | ✔ | — |
+| Findings: raise, edit, transition, link | ✔ | ✔ | — |
+| Documents: upload, link, delete | ✔ | ✔ | — |
+| Entity links: add/remove | ✔ | ✔ | — |
+| Connectors config | ✔ | — | — |
+| User management (create, role, disable) | ✔ | — | — |
+| Audit page | ✔ | ✔ | ✔ (read-only anyway) |
 
-Recommendation: **B now**; revisit C/OIDC when a real customer asks for SSO
-(they will, eventually — enterprise DD teams live in Azure AD. That's v4.x,
-and session auth migrates to it cleanly because the guard point won't move).
+Enforcement rule of thumb: **viewer = GET only** across `/api/*`;
+**user = all domain writes**; **admin = user + connectors + user admin**.
+Server-side enforcement is the source of truth; the UI additionally hides
+buttons the role can't use (no dead ends).
 
-## Design (option B)
+## Build plan
 
-### Schema — migration 016
+### 1. Install + schema (½ day)
 
-```sql
-CREATE TABLE app_user (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email         TEXT UNIQUE NOT NULL,
-  name          TEXT NOT NULL,
-  password_hash TEXT NOT NULL,          -- scrypt, per-user salt
-  role          TEXT NOT NULL DEFAULT 'member'
-                CHECK (role IN ('admin', 'member')),
-  enabled       BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+- `npm install better-auth`.
+- Auth instance `src/lib/server/auth.ts`: `betterAuth()` with the
+  **drizzle adapter** over the existing postgres.js client;
+  `emailAndPassword` enabled; **admin plugin** with custom roles
+  `admin | user | viewer` (default `viewer` — least privilege for new
+  accounts); email verification off (no mailer — users are invited).
+- Schema: generate the canonical DDL with `npx @better-auth/cli generate`,
+  then hand-write **migration 016** to repo convention (4 tables: `user`,
+  `session`, `account`, `verification` — Better Auth names, prefixed
+  `auth_` via the adapter's table-name mapping to avoid colliding with our
+  domain naming). Mirror in `schema.ts` for the adapter.
+- `BETTER_AUTH_SECRET` + base-URL env vars added to `.env.example` with
+  deployment notes (Scalingo: set `ORIGIN` for adapter-node, secure
+  cookies behind the proxy are automatic).
 
-CREATE TABLE session (
-  token_hash  TEXT PRIMARY KEY,          -- sha256 of the cookie token
-  user_id     UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
-  expires_at  TIMESTAMPTZ NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  ip          TEXT, user_agent TEXT
-);
-```
+### 2. Guard + session plumbing (2 h)
 
-Only the SHA-256 of the session token is stored — a DB leak doesn't yield
-usable cookies. 30-day sliding expiry; expired rows deleted opportunistically
-on validation.
+`hooks.server.ts` becomes a small pipeline (auth handler → session →
+role guard → existing audit log):
 
-### Server — `src/lib/server/auth.ts`
+1. Mount Better Auth's SvelteKit handler (`/api/auth/*`).
+2. Resolve session → `event.locals.user` (`{ id, email, name, role }`).
+3. **Sign-up lockdown**: the public sign-up route is blocked unless the
+   caller is an admin or presents the bootstrap token (see §4) — invited
+   users only, without forking Better Auth config.
+4. Role guard, one central map:
+   - no user → pages redirect `/login?to=…`, APIs 401;
+   - `viewer` + non-GET `/api/*` → 403;
+   - non-admin + (`/api/connectors*` mutations, user-admin routes) → 403.
+5. `Authorization: Bearer $API_TOKEN` (env) for scripts/CI → acts as role
+   `user`, actor `api-token` (keeps `npm run demo:p407` working).
+6. Audit log gains a `user_email` column — every request row says who.
 
-- `hashPassword` / `verifyPassword` — `node:crypto` scrypt + `timingSafeEqual`.
-- `createSession(userId)` → random 32-byte token → cookie
-  (`httpOnly`, `sameSite=lax`, `secure` in prod, 30 d).
-- `validateSession(token)` → user or null (+ sliding renewal).
-- Login rate limit: small in-memory counter per email/IP (single-node app —
-  good enough; note it in the security README section).
+### 3. UI (3 h)
 
-### The guard — one place, `hooks.server.ts`
+- `/login` — Better Auth svelte client (`signIn.email`), error states,
+  `?to=` redirect. No sign-up link (invited only).
+- Nav: user chip (initials + role badge) with Logout; `Connectors` and
+  `Audit` links admin-gated where applicable.
+- Role-aware rendering: viewer sees no New/Edit/Delete/Import/Raise
+  buttons (one `can(user, 'write')` helper in `$lib`, driven by
+  `+layout.server.ts` exposing `locals.user`).
 
-The audit-log hook already intercepts everything; auth slots in front of it:
+### 4. Users bootstrap + management (2 h)
 
-1. Resolve cookie → `event.locals.user`.
-2. Public: `/login` + static assets. Everything else:
-   - page request, no user → redirect `/login?to=<path>`
-   - `/api/*`, no user → 401 JSON
-3. Script access (demo:p407 checklist, future CI) — `Authorization: Bearer
-   $API_TOKEN` checked against an env var; identifies as actor `api-token`.
-4. Mutating `/api/*` requests: verify `Origin` is same-site (CSRF belt +
-   braces on top of `sameSite=lax`).
-5. Bonus: the audit log gains a `user` column — every request row now says
-   who.
+- `scripts/create-user.mjs email name role` — server-side via the auth
+  instance (ssrLoadModule, same pattern as seed-p407); prints a generated
+  password. First run creates the first admin using the bootstrap token
+  path; after that, admin-only.
+- `/admin/users` page (admin plugin client APIs): list, create, change
+  role, disable. Small — the plugin does the work.
 
-### The payoff — real actors everywhere
+### 5. Actor wiring + smoke (2 h)
 
-`locals.user.email` replaces the hardcoded strings:
+- `locals.user.email` replaces hardcoded actors: asset POST/PATCH
+  (`system` → email), import commit (`import` → email), finding
+  `raised_by` / transition `by_user` (null → email).
+- Audit trail payoff: `created | j.breysse@…` in asset history; the
+  regulator story becomes real.
+- Smoke checklist: login/logout round trip; viewer 403 on POST; user can
+  create asset+class but 403 on connectors; admin full; script token path;
+  `demo:p407` green; history rows carry emails; build clean.
 
-| Today | After |
-|---|---|
-| asset history: `created \| system` | `created \| j.breysse@…` |
-| import batches: `import` | `import (j.breysse@…)` |
-| finding `raised_by`: null | the logged-in user |
-| finding transitions `by_user`: null | the logged-in user |
+**Total: ~1.5 days.**
 
-The write service API doesn't change — handlers just pass a real actor at
-last. This is the "regulator story" clicking into place.
+## Out of scope (explicit)
 
-### UI
-
-- `/login` — email + password, error state, redirect to `?to=`.
-- Nav — user chip (initials) + Logout, right of the ⌘K hint.
-- User management v1 = **a script, not a page**: `scripts/create-user.mjs
-  email name [--admin]` prints a generated password (same ssrLoadModule
-  pattern as seed-p407). Admin page comes later if needed.
-- Role enforcement v1 (minimal): `admin` required for asset-type,
-  connector, and user mutations; everything else = any signed-in user.
-
-### Out of scope (explicitly)
-
-Self-signup (users are invited), password reset by email (no mailer — admin
-resets via script), MFA, SSO/OIDC (v4.x), multi-tenancy, per-asset
-permissions (confidentiality stays a label for now — enforcing it per-role
-is a meaningful later feature, not a footnote).
-
-## Order of work (~1 day)
-
-1. Migration 016 + auth.ts + create-user script — **2.5 h**
-2. hooks guard + locals + API token path — **1.5 h**
-3. /login + logout + nav chip — **1.5 h**
-4. Actor wiring (asset routes, import, findings routes) + audit user column — **1.5 h**
-5. Smoke: login/logout, 401s, script token, real actor in history; update
-   demo docs — **1 h**
+Self-signup, password reset by email (admin resets via script/page), MFA,
+SSO/OIDC (plugin later — that's the point of choosing Better Auth), per-asset
+permissions from the `confidentiality` label (meaningful later feature),
+multi-tenancy.
 
 ## Open questions
 
-1. Stopgap needed? If the app goes on a public URL before this builds, I can
-   add HTTP Basic at the hook level in 30 minutes and remove it when B lands.
-2. Session length — 30 days sliding OK, or shorter for the demo posture?
-3. Should `viewer` (read-only) exist from day one? Cheap now (one more role +
-   guard on mutating routes), annoying to retrofit. My lean: yes, add it —
-   "give the lender read-only access" is a likely demo ask.
+1. **Capability matrix above — confirm?** Especially: `user` may edit
+   *classes* (per your instruction) — but connectors stay admin-only, and
+   viewer keeps CSV export (it's read-only). OK?
+2. **New accounts default to `viewer`** (least privilege, admin promotes)?
+3. **Session length** — Better Auth default 7 days sliding, or 30?
