@@ -5,7 +5,8 @@ import { getAssetClassByCode } from './asset-classes';
 import { validateRefIntegrity } from './asset-refs';
 import { validateAsset, type Validated } from './validation';
 import { renderTiptapHtml } from './tiptap';
-import { setChangedBy } from './assets';
+import { getAsset, setChangedBy } from './assets';
+import { evaluateTransactionRules } from './rules-engine';
 
 /**
  * Single write choke point for the `asset` table.
@@ -40,22 +41,28 @@ type RuleContext = {
 	value: Validated['value'];
 	/** Set on update only. */
 	assetId?: string;
+	/** The record's current state on updates; null on create. */
+	old: Asset | null;
 };
 
 /**
- * v3.3 EXTENSION POINT — transaction-rule evaluation.
- *
- * This is where declared rules (docs/v3.3-spec.md: asset_rule / JSONLogic
- * conditions) will run: after validation has produced a typed value, before
- * anything is written. A rule that blocks the write should throw or return
- * errors; a rule that emits a proposal will POST to the knowledge connector.
- *
- * Deliberately a no-op today. Do not add behaviour here without the rules
- * schema — this hook only exists so the insertion point is already plumbed
- * through every write path.
+ * Transaction-rule enforcement — runs after validation, before any write
+ * (so a refusal leaves nothing behind, and the rejection audit survives).
+ * Rules are loaded from published ontology bundles via /domain; with none
+ * loaded for the class this is one indexed SELECT and returns immediately.
+ * Throws RuleViolationError (→ 422) or RuleConfigError (→ 500) upward.
  */
-async function enforceTransactionRules(_ctx: RuleContext): Promise<void> {
-	// no-op until v3.3
+async function enforceTransactionRules(ctx: RuleContext): Promise<void> {
+	if (!ctx.classDef) return;
+	await evaluateTransactionRules({
+		action: ctx.action,
+		actor: ctx.actor,
+		classCode: ctx.classDef.code,
+		assetId: ctx.assetId ?? null,
+		tag: ctx.value.tag,
+		newAttributes: ctx.value.attributes,
+		oldAttributes: (ctx.old?.attributes as Record<string, unknown> | null) ?? null
+	});
 }
 
 /**
@@ -125,7 +132,7 @@ export async function createAsset(
 
 	const contentHtml = v.content ? renderTiptapHtml(v.content) : null;
 
-	await enforceTransactionRules({ action: 'create', actor, classDef, value: v });
+	await enforceTransactionRules({ action: 'create', actor, classDef, value: v, old: null });
 
 	try {
 		const row = await withTx(conn, async (tx) => {
@@ -180,7 +187,12 @@ export async function updateAsset(id: string, input: unknown, actor: string): Pr
 
 	const contentHtml = v.content ? renderTiptapHtml(v.content) : null;
 
-	await enforceTransactionRules({ action: 'update', actor, classDef, value: v, assetId: id });
+	// The hook needs the record's current state (field_transition triggers
+	// compare old vs new); PATCH itself is full-replace and never needed it.
+	const oldRow = await getAsset(id);
+	if (!oldRow) return { ok: false, status: 404, errors: {} };
+
+	await enforceTransactionRules({ action: 'update', actor, classDef, value: v, assetId: id, old: oldRow });
 
 	try {
 		const row = await db.transaction(async (tx) => {

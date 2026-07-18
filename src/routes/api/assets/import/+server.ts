@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getAssetClassByCode } from '$lib/server/asset-classes';
 import { commitImport, validateImport } from '$lib/server/import';
+import { ruleErrorResponse } from '$lib/server/rules-engine';
 
 /**
  * Bulk CSV import, one class per file.
@@ -43,6 +44,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			{ status: 400 }
 		);
 
-	const result = await commitImport(classDef, validation, locals.user?.email ?? 'import');
+	// Transaction rules apply to imported rows too (they persist via
+	// createAsset). A violation aborts the whole batch — nothing partial.
+	let result;
+	try {
+		result = await commitImport(classDef, validation, locals.user?.email ?? 'import');
+	} catch (e) {
+		const mapped = ruleErrorResponse(e);
+		if (mapped) return mapped;
+		throw e;
+	}
 	return json({ dry_run: false, mode, ...validation, ...result }, { status: 201 });
 };

@@ -77,6 +77,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 		if (mutating && pathname.startsWith('/api/connectors') && user.role !== 'admin') {
 			return json({ error: 'admin role required' }, { status: 403 });
 		}
+		if (mutating && pathname.startsWith('/api/domain') && user.role !== 'admin') {
+			return json({ error: 'admin role required' }, { status: 403 });
+		}
 		if (pathname.startsWith('/admin') && user.role !== 'admin') {
 			if (pathname.startsWith('/api/')) return json({ error: 'admin role required' }, { status: 403 });
 			redirect(303, '/');

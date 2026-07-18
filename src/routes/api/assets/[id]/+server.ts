@@ -6,6 +6,7 @@ import { asset } from '$lib/server/db/schema';
 import { getAsset, hasChildren } from '$lib/server/assets';
 import { updateAsset } from '$lib/server/asset-service';
 import { isUuid } from '$lib/server/validation';
+import { ruleErrorResponse } from '$lib/server/rules-engine';
 
 const DEFAULT_ACTOR = 'system';
 
@@ -19,7 +20,14 @@ export const GET: RequestHandler = async ({ params }) => {
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (!isUuid(params.id)) throw error(400, 'invalid id');
 	const body = await request.json().catch(() => null);
-	const result = await updateAsset(params.id, body, locals.user?.email ?? DEFAULT_ACTOR);
+	let result;
+	try {
+		result = await updateAsset(params.id, body, locals.user?.email ?? DEFAULT_ACTOR);
+	} catch (e) {
+		const mapped = ruleErrorResponse(e);
+		if (mapped) return mapped;
+		throw e;
+	}
 	if (!result.ok) {
 		if (result.status === 404) throw error(404, 'not found');
 		return json({ errors: result.errors }, { status: result.status });

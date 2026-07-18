@@ -43,6 +43,7 @@
 				<a href="/asset-types" class="text-muted-foreground text-sm hover:text-foreground">Asset types</a>
 				<a href="/audit" class="text-muted-foreground text-sm hover:text-foreground">Audit</a>
 				{#if isAdmin(data.user.role)}
+					<a href="/domain" class="text-muted-foreground text-sm hover:text-foreground">Domain</a>
 					<a href="/admin/users" class="text-muted-foreground text-sm hover:text-foreground">Users</a>
 				{/if}
 				<!-- Discoverability hint for the Cmd-K palette. Click also opens it via

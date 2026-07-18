@@ -4,6 +4,7 @@ import { listAssets } from '$lib/server/assets';
 import { createAsset } from '$lib/server/asset-service';
 import { getAssetClassByCode } from '$lib/server/asset-classes';
 import { parseAttrQuery } from '$lib/server/attr-query';
+import { ruleErrorResponse } from '$lib/server/rules-engine';
 
 const DEFAULT_ACTOR = 'system';
 
@@ -34,7 +35,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	let result;
 	try {
 		result = await createAsset(body, locals.user?.email ?? DEFAULT_ACTOR);
-	} catch {
+	} catch (e) {
+		const mapped = ruleErrorResponse(e);
+		if (mapped) return mapped;
 		throw error(500, 'insert failed');
 	}
 	if (!result.ok) return json({ errors: result.errors }, { status: result.status });

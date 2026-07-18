@@ -137,7 +137,7 @@ Better Auth (email + password, invite-only) with three roles: `admin` (everythin
 
 ## Write path
 
-All runtime writes to the `asset` table go through the write service (`src/lib/server/asset-service.ts` — `createAsset`/`updateAsset`: validation, ref integrity, audit actor, and the future rule-enforcement hook). Seeds are the named exception: they insert via raw psql with no validation, no rules, and no audit GUC — acceptable for fixtures only.
+All runtime writes to the `asset` table go through the write service (`src/lib/server/asset-service.ts` — `createAsset`/`updateAsset`: validation, ref integrity, audit actor, and the future rule-enforcement hook). Seeds are the named exception: they insert via raw psql with no validation, no transaction-rule enforcement (see /domain), and no audit GUC — acceptable for fixtures only.
 
 ## Findings (merged 2026-07)
 

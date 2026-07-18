@@ -133,6 +133,13 @@
 		if (!res.ok) {
 			const j = await res.json().catch(() => ({}));
 			errors = j.errors ?? { _root: j.error ?? 'failed to save' };
+			// Transaction-rule refusal (422): name the rule and its provenance.
+			if (res.status === 422 && j.rule) {
+				toast.error(
+					`Blocked by ${j.rule.id} v${j.rule.version} · ${j.rule.domain} v${j.rule.domainVersion}: ${Object.values(j.errors ?? {})[0] ?? ''}`
+				);
+				return;
+			}
 			toast.error(errors._root ?? 'Could not save changes');
 			return;
 		}
