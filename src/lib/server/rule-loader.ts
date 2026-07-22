@@ -17,7 +17,11 @@ import { upsertVocabulary } from './finding-vocab';
  */
 
 const ENTITY_CLASS_MAP: Record<string, string> = {
-	deliverable: 'IER'
+	deliverable: 'IER',
+	// Reasoning rules on the generic 'asset' entity apply to every class —
+	// stored as the wildcard '*' (the evaluator matches class OR '*'; the
+	// transaction interpreter never sees these rows: enforcement filter).
+	asset: '*'
 };
 
 export type { NormalizedSpec };
@@ -47,29 +51,47 @@ export async function loadDomainVersion(
 		throw new Error(`bundle requires grammar v${gv}; this app supports v1`);
 	}
 
-	const txRules = (bundle.rules ?? []).filter((r) => r.enforcement === 'transaction');
+	const rules = (bundle.rules ?? []).filter(
+		(r) => r.enforcement === 'transaction' || r.enforcement === 'reasoning'
+	);
 
 	const loaded: LoadResult['loaded'] = [];
-	for (const rule of txRules) {
+	for (const rule of rules) {
 		const { entity, spec } = normalizeRule(rule);
+		// Reasoning rules carry what they produce (derived finding type) —
+		// stored inside the spec JSONB alongside the normalized shapes.
+		const storedSpec = {
+			...spec,
+			produces: rule.definition?.produces ?? (rule.definition?.action?.finding_type ? [rule.definition.action.finding_type] : [])
+		};
 		const classCode = entity ? (ENTITY_CLASS_MAP[entity] ?? null) : null;
 		if (!classCode) {
-			// Part 2 STOP path: an entity we can't map is a config error, not a guess.
+			if (rule.enforcement === 'reasoning') {
+				// Out-of-scope reasoning rules (e.g. R-lender-memory: its link_created
+				// event shape doesn't exist here yet) are skipped with a log — they
+				// are advisory and must not abort the load.
+				console.warn(
+					`[domain] reasoning rule ${rule.id} skipped: no mapping for entity '${entity ?? '?'}'`
+				);
+				continue;
+			}
+			// Transaction rules: an entity we can't map is a config error, not a guess.
 			throw new Error(
 				`rule ${rule.id}: no asset-class mapping for its target entity — extend ENTITY_CLASS_MAP`
 			);
 		}
 		await db`
 			INSERT INTO asset_rule
-				(rule_id, rule_version, domain_code, domain_version, content_hash, class_code, spec, enabled)
+				(rule_id, rule_version, domain_code, domain_version, content_hash, class_code, spec, enabled, enforcement)
 			VALUES
 				(${rule.id}, ${rule.version ?? 1}, ${domain}, ${v}, ${hash}, ${classCode},
-				 ${JSON.stringify(spec)}::jsonb, TRUE)
+				 ${JSON.stringify(storedSpec)}::jsonb, TRUE, ${rule.enforcement ?? 'transaction'})
 			ON CONFLICT ON CONSTRAINT asset_rule_identity DO UPDATE
 				SET content_hash = EXCLUDED.content_hash,
 				    class_code   = EXCLUDED.class_code,
 				    spec         = EXCLUDED.spec,
 				    enabled      = TRUE,
+				    enforcement  = EXCLUDED.enforcement,
 				    loaded_at    = NOW()
 		`;
 		loaded.push({ ruleId: rule.id, classCode, uninterpretable: spec.uninterpretable });
@@ -100,17 +122,18 @@ export type ActiveRuleRow = {
 	domain_version: number;
 	content_hash: string;
 	class_code: string;
-	spec: NormalizedSpec;
+	spec: NormalizedSpec & { produces?: string[] };
 	enabled: boolean;
+	enforcement: 'transaction' | 'reasoning';
 	loaded_at: Date;
 };
 
 export async function listRules(): Promise<ActiveRuleRow[]> {
 	return db<ActiveRuleRow[]>`
 		SELECT rule_id, rule_version, domain_code, domain_version, content_hash,
-		       class_code, spec, enabled, loaded_at
+		       class_code, spec, enabled, enforcement, loaded_at
 		FROM asset_rule
-		ORDER BY enabled DESC, domain_version DESC, rule_id
+		ORDER BY enabled DESC, enforcement, domain_version DESC, rule_id
 	`;
 }
 

@@ -26,6 +26,13 @@ export interface Finding {
 	created_at: string | Date;
 	updated_at: string | Date;
 	updated_by: string | null;
+	// Reasoning runtime (migration 019): NULL = human-raised finding.
+	review_status?: 'pending' | 'accepted' | 'rejected' | null;
+	review_reason?: string | null;
+	rule_id?: string | null;
+	rule_version?: number | null;
+	domain_version?: number | null;
+	trigger_summary?: string | null;
 }
 
 export interface FindingRow extends Finding {

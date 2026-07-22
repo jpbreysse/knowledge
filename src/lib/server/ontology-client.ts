@@ -30,7 +30,8 @@ export type BundleRule = {
 			condition?: string;
 		};
 		query?: { plain?: string; predicates?: string[] };
-		action?: { kind?: string; message?: string; plain?: string };
+		action?: { kind?: string; message?: string; plain?: string; finding_type?: string };
+		produces?: string[];
 	};
 };
 

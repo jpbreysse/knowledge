@@ -153,6 +153,9 @@
 				<tr class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
 					<td class="px-3 py-2">
 						<a href="/findings/{f.id}" class="font-medium hover:underline">{f.title}</a>
+					{#if f.rule_id}
+						<span class="ml-1.5 rounded border border-purple-200 bg-purple-50 px-1 py-0.5 text-[0.65rem] text-purple-700">derived · {f.rule_id}</span>
+					{/if}
 					</td>
 					<td class="px-3 py-2">
 						<span class="inline-flex items-center px-1.5 py-0.5 rounded border text-xs {severityClasses[f.severity]}">

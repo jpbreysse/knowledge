@@ -7,6 +7,8 @@ import { validateAsset, type Validated } from './validation';
 import { renderTiptapHtml } from './tiptap';
 import { getAsset, setChangedBy } from './assets';
 import { evaluateTransactionRules } from './rules-engine';
+import { emitRecordEvent } from './events';
+import './reasoning'; // side effect: registers the reasoning evaluator
 
 /**
  * Single write choke point for the `asset` table.
@@ -155,6 +157,20 @@ export async function createAsset(
 				.returning();
 			return inserted;
 		});
+		// Post-commit event — ONLY when this call owned the transaction. When a
+		// caller (the CSV import batch) passed its own tx, resolving here is NOT
+		// commit; commitImport emits for its rows after ITS transaction resolves.
+		if (!('rollback' in conn)) {
+			emitRecordEvent({
+				kind: 'record_created',
+				classCode: row.classCode,
+				assetId: row.id,
+				tag: row.tag,
+				old: null,
+				new: (row.attributes ?? {}) as Record<string, unknown>,
+				actor
+			});
+		}
 		return { ok: true, row };
 	} catch (e) {
 		const mapped = mapDbError(e);
@@ -217,6 +233,16 @@ export async function updateAsset(id: string, input: unknown, actor: string): Pr
 			return updated;
 		});
 		if (!row) return { ok: false, status: 404, errors: {} };
+		// Post-commit event — updateAsset always owns its transaction.
+		emitRecordEvent({
+			kind: 'record_updated',
+			classCode: row.classCode,
+			assetId: row.id,
+			tag: row.tag,
+			old: (oldRow.attributes ?? {}) as Record<string, unknown>,
+			new: (row.attributes ?? {}) as Record<string, unknown>,
+			actor
+		});
 		return { ok: true, row };
 	} catch (e) {
 		const mapped = mapDbError(e);

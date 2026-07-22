@@ -36,6 +36,7 @@ export const GET: RequestHandler = async () => {
 			(SELECT STRING_AGG(COALESCE(fd.document_title, fd.document_id), '; ')
 				FROM finding_document fd WHERE fd.finding_id = f.id) AS document_titles
 		FROM finding f
+		WHERE f.review_status IS NULL OR f.review_status = 'accepted'
 		ORDER BY f.raised_at DESC
 	`;
 

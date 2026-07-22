@@ -35,6 +35,12 @@
 				<a href="/" class="font-semibold tracking-tight">Asset Registry</a>
 				<a href="/assets" class="text-muted-foreground text-sm hover:text-foreground">Assets</a>
 				<a href="/findings" class="text-muted-foreground text-sm hover:text-foreground">Findings</a>
+				<a href="/inbox" class="text-muted-foreground inline-flex items-center gap-1 text-sm hover:text-foreground">
+					Inbox
+					{#if data.pendingProposals > 0}
+						<span class="rounded-full bg-purple-600 px-1.5 text-[0.65rem] font-semibold text-white">{data.pendingProposals}</span>
+					{/if}
+				</a>
 				<a href="/tree" class="text-muted-foreground text-sm hover:text-foreground">Tree</a>
 				<a href="/graph" class="text-muted-foreground text-sm hover:text-foreground">Graph</a>
 				{#if isAdmin(data.user.role)}

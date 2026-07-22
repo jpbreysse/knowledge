@@ -60,7 +60,7 @@ export async function evaluateTransactionRules(ctx: RuleEvalContext): Promise<vo
 	const rules = await db<RuleRow[]>`
 		SELECT rule_id, rule_version, domain_code, domain_version, spec
 		FROM asset_rule
-		WHERE enabled AND class_code = ${ctx.classCode}
+		WHERE enabled AND enforcement = 'transaction' AND class_code = ${ctx.classCode}
 	`;
 	if (rules.length === 0) return;
 

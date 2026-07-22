@@ -216,6 +216,12 @@
 				{data.finding.status}
 			</span>
 			<span class="text-xs text-muted-foreground">{data.finding.finding_type}</span>
+			{#if data.finding.rule_id}
+				<span class="rounded border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[0.65rem] text-purple-700"
+					title={data.finding.trigger_summary ?? ''}>
+					derived · {data.finding.rule_id} v{data.finding.rule_version} · lie v{data.finding.domain_version}
+				</span>
+			{/if}
 		</div>
 	</div>
 

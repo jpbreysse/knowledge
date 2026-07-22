@@ -75,6 +75,7 @@ export async function globalSearch(query: string): Promise<{
 	// Raw-SQL AND fragments for the finding query.
 	const findingWhere: Fragment = patterns
 		.map((p) => sqlClient`(title ILIKE ${p} OR description_html ILIKE ${p})`)
+		.concat([sqlClient`(review_status IS NULL OR review_status = 'accepted')`])
 		.reduce<Fragment>(
 			(acc, c, i) => (i === 0 ? sqlClient`WHERE ${c}` : sqlClient`${acc} AND ${c}`),
 			sqlClient``

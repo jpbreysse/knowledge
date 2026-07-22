@@ -40,12 +40,24 @@
 
 	type Rule = (typeof data.rules)[number];
 
-	/** Human sentence for the two known shapes; anything else is flagged. */
+	/** Human sentence per known shape; anything else is flagged. */
 	function sentence(r: Rule): string {
 		const s = r.spec;
 		if (s.uninterpretable || !s.trigger) return `⚠ not interpretable: ${s.uninterpretable ?? 'no trigger'}`;
-		const cond = s.conditions.map((c) => `${c.field} is empty`).join(' and ');
-		return `When ${s.trigger.field} becomes '${s.trigger.to}'${cond ? ` and ${cond}` : ''} → block: “${s.message}”`;
+		const cond = s.conditions
+			.map((c) =>
+				c.kind === 'field_empty' ? `${c.field} is empty` : `${c.field} ${c.op} ${c.value}`
+			)
+			.join(' and ');
+		const when =
+			s.trigger.kind === 'field_transition'
+				? `${s.trigger.field} becomes '${s.trigger.to}'`
+				: `${s.trigger.field} changes`;
+		if (r.enforcement === 'reasoning') {
+			const produces = (s.produces ?? []).join(', ') || '?';
+			return `When ${when}${cond ? ` and ${cond}` : ''} → propose '${produces}'`;
+		}
+		return `When ${when}${cond ? ` and ${cond}` : ''} → block: “${s.message}”`;
 	}
 </script>
 
@@ -129,7 +141,7 @@
 
 	<!-- Active rules (read-only) -->
 	<section class="space-y-2">
-		<h2 class="text-sm font-semibold">Active transaction rules</h2>
+		<h2 class="text-sm font-semibold">Active rules</h2>
 		{#if data.rules.length === 0}
 			<p class="text-muted-foreground text-sm">None loaded.</p>
 		{:else}
@@ -151,6 +163,9 @@
 										<span class="font-mono text-xs font-semibold">{r.rule_id}</span>
 										<span class="text-muted-foreground text-xs">v{r.rule_version}</span>
 										<span class="rounded border bg-muted px-1.5 py-0.5 font-mono text-[0.65rem]">{r.class_code}</span>
+										{#if r.enforcement === 'reasoning'}
+											<span class="rounded border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[0.65rem] text-purple-700">reasoning · evaluated async, produces proposals</span>
+										{/if}
 										{#if r.enabled}
 											<span class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[0.65rem] text-emerald-700">enabled</span>
 										{:else}

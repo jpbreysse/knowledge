@@ -60,6 +60,9 @@ export async function listFindings(filters: ListFilters = {}): Promise<{
 	const dir = filters.dir === 'asc' ? 'ASC' : 'DESC';
 
 	const conds: Fragment[] = [];
+	// Derived proposals stay out of normal lists until accepted; rejected stay
+	// hidden for good (queryable directly — the calibration signal).
+	conds.push(db`(f.review_status IS NULL OR f.review_status = 'accepted')`);
 	if (filters.severity?.length) {
 		conds.push(db`f.severity IN ${db(filters.severity)}`);
 	}
@@ -380,14 +383,17 @@ export type FindingForAsset = {
 	status: Status;
 	finding_type: string;
 	raised_at: Date;
+	rule_id: string | null;
+	review_status: string | null;
 };
 
 export async function findingsForAsset(assetId: string, limit = 10): Promise<FindingForAsset[]> {
 	return db<FindingForAsset[]>`
-		SELECT f.id, f.title, f.severity, f.status, f.finding_type, f.raised_at
+		SELECT f.id, f.title, f.severity, f.status, f.finding_type, f.raised_at, f.rule_id, f.review_status
 		FROM finding f
 		JOIN finding_asset fa ON fa.finding_id = f.id
 		WHERE fa.asset_id = ${assetId}::uuid
+		  AND (f.review_status IS NULL OR f.review_status = 'accepted')
 		ORDER BY
 			CASE f.severity
 				WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3
@@ -441,6 +447,7 @@ export async function precedentsForAsset(
 		FROM candidates c
 		JOIN finding_asset fa ON fa.asset_id = c.leaf_id
 		JOIN finding f ON f.id = fa.finding_id AND f.status = 'closed'
+			AND (f.review_status IS NULL OR f.review_status = 'accepted')
 		ORDER BY
 			CASE f.severity
 				WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3

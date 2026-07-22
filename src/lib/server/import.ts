@@ -2,6 +2,7 @@ import { inArray, sql } from 'drizzle-orm';
 import { db } from './db';
 import { asset, type AssetClass, type AssetClassField } from './db/schema';
 import { createAsset } from './asset-service';
+import { emitRecordEvent } from './events';
 import { validateAsset } from './validation';
 
 // v1 scope: one CSV = one class. `object` fields are excluded from the
@@ -436,7 +437,10 @@ export async function commitImport(
 			}
 		}
 
-		const out: ImportCommitResult['created'] = [];
+		const out: (ImportCommitResult['created'][number] & {
+			classCode: string;
+			attributes: Record<string, unknown>;
+		})[] = [];
 		for (const r of validRows) {
 			const p = r.parsed!;
 			let tag = p.tag;
@@ -458,10 +462,32 @@ export async function commitImport(
 			);
 			if (!result.ok)
 				throw new Error(`import aborted at line ${r.line}: ${JSON.stringify(result.errors)}`);
-			out.push({ id: result.row.id, tag: result.row.tag, line: r.line });
+			out.push({
+				id: result.row.id,
+				tag: result.row.tag,
+				line: r.line,
+				classCode: result.row.classCode,
+				attributes: (result.row.attributes ?? {}) as Record<string, unknown>
+			});
 		}
 		return out;
 	});
 
-	return { created, skippedLines };
+	// The batch transaction has committed — NOW the rows are real; emit events.
+	for (const c of created) {
+		emitRecordEvent({
+			kind: 'record_created',
+			classCode: c.classCode,
+			assetId: c.id,
+			tag: c.tag,
+			old: null,
+			new: c.attributes,
+			actor
+		});
+	}
+
+	return {
+		created: created.map(({ id, tag, line }) => ({ id, tag, line })),
+		skippedLines
+	};
 }

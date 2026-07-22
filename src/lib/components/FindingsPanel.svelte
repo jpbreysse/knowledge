@@ -62,6 +62,9 @@
 						<div class="flex items-center gap-2">
 							<FindingBadge kind="severity" value={f.severity} />
 							<FindingBadge kind="status" value={f.status} />
+							{#if f.rule_id}
+								<span class="rounded border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[0.65rem] text-purple-700">derived · {f.rule_id}</span>
+							{/if}
 						</div>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-sm font-medium">{f.title}</p>
