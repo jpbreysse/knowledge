@@ -4,7 +4,8 @@ export const FINDING_TYPES = ['inspection'] as const;
 
 export type Severity = (typeof SEVERITIES)[number];
 export type Status = (typeof STATUSES)[number];
-export type FindingType = (typeof FINDING_TYPES)[number];
+// Domain vocabularies introduce arbitrary type ids beyond the legacy const.
+export type FindingType = string;
 
 export interface Finding {
 	id: string;

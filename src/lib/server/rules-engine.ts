@@ -1,20 +1,19 @@
 import { json } from '@sveltejs/kit';
 import { sqlClient as db } from './db';
-import type { Asset } from './db/schema';
 import type { NormalizedSpec } from './rule-loader';
+import { matchTrigger, evalCondition } from '@arborspace/rule-grammar/evaluate';
 
 /**
  * Transaction-rule interpreter — executed by enforceTransactionRules() on
  * every asset create/update (imports included: they persist via createAsset).
  *
- * Supports EXACTLY two shapes (see rule-loader.ts normalization contract):
- *   trigger  field_transition {field, to} — old?.[field] !== to && new[field] === to
- *   condition field_empty {field}         — null / '' / absent
- * Attribute fields resolve against the attributes JSONB on both sides.
- *
- * Fail-closed: an ENABLED rule whose spec is uninterpretable throws
- * RuleConfigError (500-class) — a blocker we can't evaluate must never be
- * silently skipped. Zero loaded rules = one indexed SELECT, no behavior.
+ * The pure trigger-match and condition-evaluation logic lives in
+ * `@arborspace/rule-grammar/evaluate` (same shapes, byte-identical semantics).
+ * This file keeps the app-owned pieces:
+ *   1. The DB lookup for enabled rules by class.
+ *   2. Fail-closed check on uninterpretable enabled rules (RuleConfigError).
+ *   3. Audit-insert into `rule_rejection` before throwing RuleViolationError.
+ *   4. Error-to-HTTP mapping via ruleErrorResponse().
  */
 
 export class RuleViolationError extends Error {
@@ -57,10 +56,6 @@ export type RuleEvalContext = {
 	oldAttributes: Record<string, unknown> | null;
 };
 
-function isEmpty(v: unknown): boolean {
-	return v === null || v === undefined || v === '';
-}
-
 export async function evaluateTransactionRules(ctx: RuleEvalContext): Promise<void> {
 	const rules = await db<RuleRow[]>`
 		SELECT rule_id, rule_version, domain_code, domain_version, spec
@@ -79,25 +74,10 @@ export async function evaluateTransactionRules(ctx: RuleEvalContext): Promise<vo
 			);
 		}
 
-		// trigger: field_transition
-		const { field, to } = spec.trigger;
-		const newVal = ctx.newAttributes[field];
-		const oldVal = ctx.oldAttributes?.[field];
-		const fired = oldVal !== to && newVal === to;
-		if (!fired) continue;
+		if (!matchTrigger(spec, ctx.newAttributes, ctx.oldAttributes)) continue;
 
-		// conditions: field_empty (all must hold for the rule to block)
-		let violatedField: string | null = null;
-		let allHold = spec.conditions.length > 0;
-		for (const cond of spec.conditions) {
-			if (isEmpty(ctx.newAttributes[cond.field])) {
-				violatedField = cond.field;
-			} else {
-				allHold = false;
-				break;
-			}
-		}
-		if (!allHold) continue;
+		const violatedField = evalCondition(spec, ctx.newAttributes);
+		if (violatedField === null) continue;
 
 		// Violation: audit first (survives — we're before any write), then block.
 		await db`

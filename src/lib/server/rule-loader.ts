@@ -1,84 +1,26 @@
 import { sqlClient as db } from './db';
-import { fetchBundle, postHeartbeat, type Bundle, type BundleRule } from './ontology-client';
+import { fetchBundle, postHeartbeat, type Bundle } from './ontology-client';
+import { normalizeRule, type NormalizedSpec } from '@arborspace/rule-grammar/normalize';
+import { upsertVocabulary } from './finding-vocab';
 
 /**
  * Load-time pipeline: bundle → normalized transaction rules → asset_rule.
  *
- * Normalization contract (deliberately tiny — the interpreter executes ONLY
- * these two shapes, docs/…/transaction engine prompt):
- *   trigger  { kind: 'field_transition', field, to }
- *   condition{ kind: 'field_empty', field }
- *
- * The current bundles carry a STRUCTURED trigger (event='field_transition')
- * and PROSE predicates; exactly one prose pattern is translated:
- *   "<entity>.<field> is empty"  →  field_empty
- * A predicate that merely restates the trigger's target value is skipped as
- * redundant. Anything else leaves the rule stored but marked uninterpretable
- * — the interpreter fails CLOSED on enabled uninterpretable rules (a blocker
- * we can't evaluate must never be silently ignored).
+ * The grammar-v1 normalizer (bundle rule → {entity, NormalizedSpec}) is now
+ * in `@arborspace/rule-grammar/normalize` — behavior unchanged. This file
+ * keeps the app-owned pieces:
+ *   1. `ENTITY_CLASS_MAP` — ontology-entity → asset-class routing. Static
+ *      and in git on purpose (one entity today; a generalized connector
+ *      fabric is explicitly out of scope).
+ *   2. `loadDomainVersion` — bundle fetch + normalize + DB upsert + heartbeat.
+ *   3. `listRules`, `currentDomainState` — DB reads for the /domain page.
  */
 
-// Part 2 mapping — ontology entity → asset class. Static and in git on
-// purpose: one entity exists today; the generalized connector fabric / class
-// loader is explicitly out of scope here.
 const ENTITY_CLASS_MAP: Record<string, string> = {
 	deliverable: 'IER'
 };
 
-export type NormalizedSpec = {
-	trigger: { kind: 'field_transition'; field: string; to: string } | null;
-	conditions: { kind: 'field_empty'; field: string }[];
-	message: string;
-	severity: string;
-	name: string;
-	/** Set when any part of the rule could not be translated — fail-closed marker. */
-	uninterpretable?: string;
-	/** Original bundle definition, for the /domain debug expander. */
-	raw: unknown;
-};
-
-const EMPTY_PREDICATE_RE = /^\s*(\w+)\.(\w+)\s+is\s+empty\s*$/i;
-const EQUALS_PREDICATE_RE = /^\s*(\w+)\.(\w+)\s*=\s*'([^']*)'\s*$/;
-
-function normalizeRule(rule: BundleRule): { classCode: string | null; spec: NormalizedSpec } {
-	const def = rule.definition ?? {};
-	const spec: NormalizedSpec = {
-		trigger: null,
-		conditions: [],
-		message: def.action?.message ?? rule.name ?? rule.id,
-		severity: rule.severity ?? 'blocker',
-		name: rule.name ?? rule.id,
-		raw: def
-	};
-
-	// Trigger — structured passthrough only.
-	const t = def.trigger;
-	let entity: string | null = null;
-	if (t?.event === 'field_transition' && t.field && typeof t.to === 'string') {
-		spec.trigger = { kind: 'field_transition', field: t.field, to: t.to };
-		entity = t.entity ?? null;
-	} else {
-		spec.uninterpretable = `trigger event '${t?.event ?? 'missing'}' is not a known shape`;
-	}
-
-	// Predicates — translate emptiness; skip the one that restates the trigger.
-	for (const p of def.query?.predicates ?? []) {
-		const empty = EMPTY_PREDICATE_RE.exec(p);
-		if (empty) {
-			spec.conditions.push({ kind: 'field_empty', field: empty[2] });
-			entity = entity ?? empty[1];
-			continue;
-		}
-		const eq = EQUALS_PREDICATE_RE.exec(p);
-		if (eq && spec.trigger && eq[2] === spec.trigger.field && eq[3] === spec.trigger.to) {
-			continue; // redundant restatement of the trigger target
-		}
-		spec.uninterpretable = `predicate not translatable: "${p}"`;
-	}
-
-	const classCode = entity ? (ENTITY_CLASS_MAP[entity] ?? null) : null;
-	return { classCode, spec };
-}
+export type { NormalizedSpec };
 
 export type LoadResult = {
 	domain: string;
@@ -86,6 +28,7 @@ export type LoadResult = {
 	hash: string;
 	loaded: { ruleId: string; classCode: string; uninterpretable?: string }[];
 	disabled: number;
+	vocabulary: { direct: number; derived: number; missing: number };
 };
 
 export async function loadDomainVersion(
@@ -98,11 +41,18 @@ export async function loadDomainVersion(
 	const hash = bundle.content_hash ?? bundle.hash ?? '';
 	if (!v || !hash) throw new Error('bundle is missing version or content hash');
 
+	// Grammar gate: absent = pre-grammar bundle (accepted); >1 = refuse loudly.
+	const gv = bundle.grammar_version;
+	if (gv !== undefined && gv > 1) {
+		throw new Error(`bundle requires grammar v${gv}; this app supports v1`);
+	}
+
 	const txRules = (bundle.rules ?? []).filter((r) => r.enforcement === 'transaction');
 
 	const loaded: LoadResult['loaded'] = [];
 	for (const rule of txRules) {
-		const { classCode, spec } = normalizeRule(rule);
+		const { entity, spec } = normalizeRule(rule);
+		const classCode = entity ? (ENTITY_CLASS_MAP[entity] ?? null) : null;
 		if (!classCode) {
 			// Part 2 STOP path: an entity we can't map is a config error, not a guess.
 			throw new Error(
@@ -132,10 +82,15 @@ export async function loadDomainVersion(
 		WHERE domain_code = ${domain} AND domain_version <> ${v} AND enabled
 	`;
 
-	// Non-blocking consumer heartbeat.
-	void postHeartbeat(domain, v, hash);
+	// Finding-type vocabulary (direct offered on /findings/new, derived stored
+	// for the future review inbox).
+	const vocabulary = await upsertVocabulary(bundle, domain, v, hash);
 
-	return { domain, version: v, hash, loaded, disabled: res.count };
+	// Non-blocking consumer heartbeats — one per consuming module.
+	void postHeartbeat(domain, v, hash, 'asset-app');
+	void postHeartbeat(domain, v, hash, 'findings-app');
+
+	return { domain, version: v, hash, loaded, disabled: res.count, vocabulary };
 }
 
 export type ActiveRuleRow = {

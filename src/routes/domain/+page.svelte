@@ -180,4 +180,45 @@
 			</div>
 		{/if}
 	</section>
+	<!-- Finding-type vocabulary (read-only) -->
+	<section class="space-y-2">
+		<h2 class="text-sm font-semibold">Finding-type vocabulary</h2>
+		{#if data.typeDefs.length === 0}
+			<p class="text-muted-foreground text-sm">None loaded — /findings/new stays in legacy mode (inspection).</p>
+		{:else}
+			<p class="text-muted-foreground text-xs">
+				{data.typeDefs.filter((t) => t.kind === 'direct').length} direct (offered on /findings/new)
+				· {data.typeDefs.filter((t) => t.kind === 'derived').length} derived (stored for the future review inbox)
+			</p>
+			<div class="rounded-md border">
+				<table class="w-full text-sm">
+					<thead class="bg-muted/50">
+						<tr class="text-left">
+							<th class="px-3 py-2 font-medium">Type</th>
+							<th class="px-3 py-2 font-medium">Kind</th>
+							<th class="px-3 py-2 font-medium">Default severity</th>
+							<th class="px-3 py-2 font-medium">Required fields</th>
+							<th class="px-3 py-2 font-medium">Producer / decider</th>
+							<th class="px-3 py-2 font-medium">Flags</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each data.typeDefs as t (t.type)}
+							<tr class="border-t {t.deprecated || t.missing_from_bundle ? 'opacity-45' : ''}" title={t.guidance ?? t.description ?? ''}>
+								<td class="px-3 py-2 font-mono text-xs">{t.type}</td>
+								<td class="px-3 py-2 text-xs">{t.kind}</td>
+								<td class="px-3 py-2 text-xs">{t.default_severity ?? '—'}</td>
+								<td class="px-3 py-2 font-mono text-[0.7rem]">{(t.required_fields ?? []).join(', ') || '—'}</td>
+								<td class="text-muted-foreground px-3 py-2 text-xs">{t.producer ?? ''}{t.producer && t.decider_role ? ' → ' : ''}{t.decider_role ?? ''}</td>
+								<td class="px-3 py-2 text-xs">
+									{#if t.deprecated}<span class="rounded border px-1 py-0.5 text-[0.65rem]">deprecated</span>{/if}
+									{#if t.missing_from_bundle}<span class="rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-[0.65rem] text-amber-800">missing from bundle</span>{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+	</section>
 </div>

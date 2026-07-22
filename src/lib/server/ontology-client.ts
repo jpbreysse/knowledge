@@ -40,7 +40,9 @@ export type Bundle = {
 	version?: number;
 	hash?: string;
 	content_hash?: string;
+	grammar_version?: number;
 	rules?: BundleRule[];
+	finding_types?: unknown; // { direct: [...], derived: [...] } — parsed in finding-vocab.ts
 };
 
 async function get(path: string): Promise<Response> {
@@ -65,14 +67,22 @@ export async function fetchBundle(domainCode: string, version: number | 'latest'
 	return (await res.json()) as Bundle;
 }
 
-/** Fire-and-forget consumer heartbeat — never blocks or fails a load. */
-export async function postHeartbeat(domain: string, version: number, hash: string): Promise<void> {
+/** Fire-and-forget consumer heartbeat — never blocks or fails a load.
+ *  Two consumer identities live in this one app: 'asset-app' (transaction
+ *  rules) and 'findings-app' (finding-type vocabulary) — they consume
+ *  distinct parts of the bundle and report separately. */
+export async function postHeartbeat(
+	domain: string,
+	version: number,
+	hash: string,
+	consumer: 'asset-app' | 'findings-app' = 'asset-app'
+): Promise<void> {
 	try {
 		const res = await fetch(`${ONTOLOGY_URL}/api/consumers/heartbeat`, {
 			method: 'POST',
 			signal: AbortSignal.timeout(5000),
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ consumer: 'asset-app', domain, version, hash })
+			body: JSON.stringify({ consumer, domain, version, hash })
 		});
 		if (!res.ok) console.error(`[ontology] heartbeat rejected: ${res.status}`);
 	} catch (e) {

@@ -11,6 +11,7 @@ import {
 	FINDING_TYPES
 } from '$lib/server/findings';
 import { validateCreateFinding } from '$lib/server/findings-validation';
+import { getTypeDef } from '$lib/server/finding-vocab';
 
 export const GET: RequestHandler = async ({ url }) => {
 	const sevParam = url.searchParams.getAll('severity');
@@ -61,10 +62,34 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	} catch {
 		throw error(400, 'Invalid JSON');
 	}
-	const parsed = validateCreateFinding(body);
+	// Domain vocabulary: an offerable direct type widens the allowed set and
+	// brings required_fields (enforced below with field-level issues). With no
+	// vocabulary loaded this resolves to null → legacy behavior, bit for bit.
+	const requestedType =
+		body && typeof (body as { finding_type?: unknown }).finding_type === 'string'
+			? (body as { finding_type: string }).finding_type
+			: null;
+	const typeDef = requestedType ? await getTypeDef(requestedType) : null;
+	const offerable =
+		!!typeDef && typeDef.kind === 'direct' && !typeDef.deprecated && !typeDef.missing_from_bundle;
+
+	const parsed = validateCreateFinding(body, offerable ? [typeDef!.type] : []);
 	if (!parsed.ok) {
 		return json({ error: 'Validation failed', issues: parsed.issues }, { status: 400 });
 	}
+
+	if (offerable) {
+		const issues: { path: string; message: string }[] = [];
+		for (const rf of typeDef!.required_fields) {
+			if (rf === 'title') continue; // native column, already required
+			const v = parsed.value.attributes?.[rf];
+			if (v === undefined || v === null || v === '') {
+				issues.push({ path: `attributes.${rf}`, message: 'required' });
+			}
+		}
+		if (issues.length) return json({ error: 'Validation failed', issues }, { status: 400 });
+	}
+
 	const finding = await createFinding({
 		...parsed.value,
 		raised_by: parsed.value.raised_by ?? locals.user?.email ?? null

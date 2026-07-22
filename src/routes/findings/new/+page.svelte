@@ -7,10 +7,33 @@
 	import { toast } from 'svelte-sonner';
 	import { SEVERITIES, type Severity } from '$lib/types';
 	import X from '@lucide/svelte/icons/x';
+	import Info from '@lucide/svelte/icons/info';
+
+	let { data } = $props();
 
 	let title = $state('');
 	let severity = $state<Severity>('medium');
 	let saving = $state(false);
+	let fieldErrors = $state<Record<string, string>>({});
+
+	// Domain vocabulary (empty = legacy mode, form identical to pre-vocabulary).
+	const hasVocab = $derived(data.types.length > 0);
+	let fType = $state('');
+	const typeDef = $derived(data.types.find((t) => t.type === fType) ?? null);
+	// Extra required fields beyond title — rendered as inputs into attributes.
+	const extraFields = $derived(
+		(typeDef?.required_fields ?? []).filter((f: string) => f !== 'title')
+	);
+	let attrValues = $state<Record<string, string>>({});
+
+	function onTypeChange() {
+		fieldErrors = {};
+		attrValues = {};
+		const d = data.types.find((t) => t.type === fType);
+		if (d?.default_severity && (SEVERITIES as readonly string[]).includes(d.default_severity)) {
+			severity = d.default_severity as Severity;
+		}
+	}
 
 	// Prefill from the Raise-finding button on /assets/[id]:
 	// ?asset_id=…&asset_tag=…&asset_display=…&return_to=/assets/…
@@ -29,15 +52,32 @@
 			return;
 		}
 		saving = true;
+		fieldErrors = {};
 		const id = crypto.randomUUID();
 		try {
+			const body: Record<string, unknown> = { id, title: title.trim(), severity };
+			if (fType) {
+				body.finding_type = fType;
+				const attrs: Record<string, unknown> = {};
+				for (const [k, v] of Object.entries(attrValues)) {
+					if (v.trim() !== '') attrs[k] = v.trim();
+				}
+				body.attributes = attrs;
+			}
 			const res = await fetch('/api/findings', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ id, title: title.trim(), severity })
+				body: JSON.stringify(body)
 			});
 			if (!res.ok) {
-				toast.error('Save failed: ' + (await res.text()));
+				const j = await res.json().catch(() => ({}));
+				const issues = (j.issues ?? []) as { path: string; message: string }[];
+				if (issues.length) {
+					fieldErrors = Object.fromEntries(issues.map((i) => [i.path, i.message]));
+					toast.error(issues[0].message + (issues[0].path ? ` (${issues[0].path.replace('attributes.', '')})` : ''));
+				} else {
+					toast.error('Save failed: ' + (j.error ?? (await res.text())));
+				}
 				return;
 			}
 			if (linkedAssetId) {
@@ -83,6 +123,32 @@
 		</div>
 	{/if}
 
+	{#if hasVocab}
+		<div>
+			<Label for="ftype" class="text-xs">Type</Label>
+			<select
+				id="ftype"
+				bind:value={fType}
+				onchange={onTypeChange}
+				class="mt-1 block w-72 text-sm border border-border rounded px-2 py-1 bg-background"
+			>
+				<option value="">inspection (legacy)</option>
+				{#each data.types as t (t.type)}
+					<option value={t.type}>{t.type.replaceAll('_', ' ')}</option>
+				{/each}
+			</select>
+			{#if fieldErrors['finding_type']}
+				<p class="mt-1 text-xs text-destructive">{fieldErrors['finding_type']}</p>
+			{/if}
+			{#if typeDef?.guidance}
+				<div class="mt-2 flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+					<Info class="mt-0.5 size-3.5 shrink-0" />
+					<span>{typeDef.guidance}</span>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
 	<div>
 		<Label for="title" class="text-xs">Title</Label>
 		<Input
@@ -91,7 +157,23 @@
 			placeholder="Short summary of the finding"
 			class="mt-1"
 		/>
+		{#if fieldErrors['title']}<p class="mt-1 text-xs text-destructive">{fieldErrors['title']}</p>{/if}
 	</div>
+
+	{#each extraFields as f (f)}
+		<div>
+			<Label for={`rf-${f}`} class="text-xs">{f.replaceAll('_', ' ')} <span class="text-destructive">*</span></Label>
+			<textarea
+				id={`rf-${f}`}
+				bind:value={attrValues[f]}
+				rows="3"
+				class="mt-1 block w-full rounded border border-border bg-background px-2 py-1 text-sm"
+			></textarea>
+			{#if fieldErrors[`attributes.${f}`]}
+				<p class="mt-1 text-xs text-destructive">{fieldErrors[`attributes.${f}`]}</p>
+			{/if}
+		</div>
+	{/each}
 
 	<div>
 		<Label for="severity" class="text-xs">Severity</Label>

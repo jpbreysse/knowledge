@@ -26,7 +26,10 @@ function optStr(v: unknown, path: string, issues: Issue[], max = 500): string | 
 	return v;
 }
 
-export function validateCreateFinding(body: unknown): Parsed<{
+export function validateCreateFinding(
+	body: unknown,
+	extraAllowedTypes: string[] = []
+): Parsed<{
 	id: string;
 	title: string;
 	severity: Severity;
@@ -58,8 +61,9 @@ export function validateCreateFinding(body: unknown): Parsed<{
 
 	let findingType: FindingType | undefined;
 	if (body.finding_type !== undefined) {
-		if (!FINDING_TYPES.includes(body.finding_type as FindingType))
-			issues.push({ path: 'finding_type', message: `must be one of ${FINDING_TYPES.join(', ')}` });
+		const allowed = [...FINDING_TYPES, ...extraAllowedTypes];
+		if (!allowed.includes(body.finding_type as FindingType))
+			issues.push({ path: 'finding_type', message: `must be one of ${allowed.join(', ')}` });
 		else findingType = body.finding_type as FindingType;
 	}
 
